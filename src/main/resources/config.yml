@@ -1,0 +1,42 @@
+# Questly
+#
+# The quests are in quests.yml, the texts in lang.yml and the points shop in shop.yml.
+# Reload them all with /questly admin reload.
+
+board:
+  # How many quests are on the board at once (1 to 54).
+  slots: 9
+  # After somebody wins a quest, seconds until a new quest takes its place.
+  cooldown-seconds: 1800
+  # Avoid the same quest, or two quests that ask for the same thing, on the board at once.
+  unique-quests: true
+  # Players in creative or spectator mode do not get progress unless this is true.
+  count-creative: false
+
+# How often the progress of the players is saved, in seconds. Winning a quest is saved right away.
+save-seconds: 60
+
+# A chat message only counts for a chat quest when it is long enough and not sent too fast or twice in a row.
+chat:
+  min-length: 3
+  cooldown-seconds: 3
+
+gui:
+  title: "&#FF9558Quest Board"
+  # Fills the slots of the board that have no quest.
+  filler: BLACK_STAINED_GLASS_PANE
+  # Shown in the place of a quest that was won, until the next one starts.
+  cooldown-item:
+    material: CLOCK
+    name: "&#FF9558Next quest in &f%time%"
+    lore:
+      - "&#B6C1C8Quests"
+      - ""
+      - "&fThis quest was won by &#FFE75C%winner%&f."
+
+# Messages sent to everybody. Turn one off with false, or set the text in lang.yml.
+broadcasts:
+  completed: true
+  new-quest: false
+  # Tell the leader of a quest when somebody passes them.
+  taken-over: true

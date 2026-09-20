@@ -1,0 +1,60 @@
+# What players can buy with quest points, in /questly shop.
+# Every item has a price in quest points, and what the buyer gets: commands run by the console
+# (%player% is the buyer), items, or both.
+
+title: "&#FF9558Quest Shop"
+rows: 3
+filler: BLACK_STAINED_GLASS_PANE
+
+items:
+  diamonds:
+    slot: 10
+    price: 10
+    material: DIAMOND
+    name: "&#9ED8FF5 Diamonds"
+    lore:
+      - "&#B6C1C8Shop"
+      - ""
+      - "&fPrice: &#FF8BB0%price% points"
+      - "&fYou have: &#FF8BB0%points% points"
+    give:
+      - material: DIAMOND
+        amount: 5
+  experience:
+    slot: 12
+    price: 6
+    material: EXPERIENCE_BOTTLE
+    name: "&#A8E6A3500 Experience"
+    lore:
+      - "&#B6C1C8Shop"
+      - ""
+      - "&fPrice: &#FF8BB0%price% points"
+      - "&fYou have: &#FF8BB0%points% points"
+    commands:
+      - "xp add %player% 500 points"
+  netherite:
+    slot: 14
+    price: 40
+    material: NETHERITE_INGOT
+    name: "&#FFC8A2Netherite Ingot"
+    lore:
+      - "&#B6C1C8Shop"
+      - ""
+      - "&fPrice: &#FF8BB0%price% points"
+      - "&fYou have: &#FF8BB0%points% points"
+    give:
+      - material: NETHERITE_INGOT
+        amount: 1
+  golden-apples:
+    slot: 16
+    price: 8
+    material: ENCHANTED_GOLDEN_APPLE
+    name: "&#FFE29AEnchanted Golden Apple"
+    lore:
+      - "&#B6C1C8Shop"
+      - ""
+      - "&fPrice: &#FF8BB0%price% points"
+      - "&fYou have: &#FF8BB0%points% points"
+    give:
+      - material: ENCHANTED_GOLDEN_APPLE
+        amount: 1

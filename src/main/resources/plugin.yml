@@ -1,0 +1,24 @@
+name: Questly
+version: '${version}'
+main: dev.questly.QuestlyPlugin
+api-version: '1.21'
+description: A quest board where players race to finish quests and win points
+softdepend:
+  - PlaceholderAPI
+
+commands:
+  questly:
+    description: Open the quest board
+    usage: /<command> [shop | points | admin]
+    aliases: [quests]
+
+permissions:
+  questly.use:
+    description: Open the board and the shop
+    default: true
+  questly.points.others:
+    description: See the points of other players
+    default: op
+  questly.admin:
+    description: Reload, reset the board, set quests and change points
+    default: op

@@ -1,0 +1,31 @@
+# Texts. MiniMessage, & codes and &#rrggbb all work. Leave one empty to turn it off.
+# %player%, %quest%, %points%, %amount% and %time% are filled in.
+
+prefix: "&#FF9558&lQUESTS &8» "
+
+no-permission: "&cYou do not have permission to do this."
+players-only: "&cOnly players can do this."
+unknown-player: "&cThat player has not played here."
+unknown-quest: "&cThere is no quest with that id."
+unknown-slot: "&cThere is no such place on the board."
+
+points: "&fYou have &#FF8BB0%points% &fquest points."
+points-other: "&f%player% has &#FF8BB0%points% &fquest points."
+points-changed: "&f%player% now has &#FF8BB0%points% &fquest points."
+not-enough-points: "&cYou need %price% quest points for this, you have %points%."
+shop-bought: "&fYou bought &#A8E6A3%item%&f."
+
+completed: "&#FFE75C%player% &fwon the quest &#A8E6A3%quest% &fand got &#FF8BB0%points% &fquest points!"
+new-quest: "&fA new quest is up: &#A8E6A3%quest%&f."
+taken-over: "&#FFE75C%player% &fpassed you in &#A8E6A3%quest%&f."
+reward-waiting: "&fYou got %amount% reward(s) from quests you won while away."
+
+reset: "&fThe board has new quests."
+reloaded: "&fReloaded. There are %amount% quests."
+quest-set: "&fSlot %slot% now has the quest &#A8E6A3%quest%&f."
+
+usage:
+  - "&#FF9558&lQuestly"
+  - "&f/questly &7- open the board"
+  - "&f/questly shop &7- spend quest points"
+  - "&f/questly points [player] &7- see quest points"
