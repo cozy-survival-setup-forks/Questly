@@ -79,7 +79,7 @@ public final class Menus implements Listener {
         products.clear();
         ConfigurationSection items = shop.getConfigurationSection("items");
         if (items == null) return;
-        int size = shopRows() * 9;
+        int size = shopSize();
         for (String id : items.getKeys(false)) {
             ConfigurationSection entry = items.getConfigurationSection(id);
             if (entry == null) continue;
@@ -87,7 +87,8 @@ public final class Menus implements Listener {
             int slot = entry.getInt("slot", -1);
             int price = entry.getInt("price", 0);
             String material = entry.getString("material", "PAPER").toUpperCase(Locale.ROOT);
-            List<String> commands = entry.getStringList("commands");
+            List<String> commands = entry.contains("left_click_commands")
+                    ? entry.getStringList("left_click_commands") : entry.getStringList("commands");
             List<ConfigurationSection> give = new ArrayList<>();
             for (Map<?, ?> map : entry.getMapList("give")) {
                 YamlConfiguration line = new YamlConfiguration();
@@ -102,16 +103,18 @@ public final class Menus implements Listener {
             } else if (Material.matchMaterial(material) == null) {
                 plugin.getLogger().warning("shop.yml: " + id + " shows '" + material + "', which is not an item. Skipping it.");
             } else if (commands.isEmpty() && give.isEmpty()) {
-                plugin.getLogger().warning("shop.yml: " + id + " gives nothing, add commands or give. Skipping it.");
+                plugin.getLogger().warning("shop.yml: " + id + " gives nothing, add left_click_commands or give. Skipping it.");
             } else {
-                products.put(slot, new Product(id, slot, price, material, entry.getString("name", id),
-                        entry.getStringList("lore"), commands, give));
+                String name = entry.contains("display_name") ? entry.getString("display_name", id) : entry.getString("name", id);
+                products.put(slot, new Product(id, slot, price, material, name, entry.getStringList("lore"), commands, give));
             }
         }
     }
 
-    private int shopRows() {
-        return Math.max(1, Math.min(6, shop.getInt("rows", 3)));
+    /** {@code size} (a DeluxeMenus-style inventory row count) if set, otherwise the older {@code rows}. */
+    private int shopSize() {
+        if (shop.contains("size")) return Math.max(9, Math.min(54, shop.getInt("size", 27)));
+        return Math.max(1, Math.min(6, shop.getInt("rows", 3))) * 9;
     }
 
     // ---- items ----
@@ -205,7 +208,8 @@ public final class Menus implements Listener {
 
     public void openShop(Player player) {
         ShopHolder holder = new ShopHolder();
-        holder.inventory = Bukkit.createInventory(holder, shopRows() * 9, Text.component(shop.getString("title", "Quest Shop")));
+        String title = shop.contains("menu_title") ? shop.getString("menu_title", "Quest Shop") : shop.getString("title", "Quest Shop");
+        holder.inventory = Bukkit.createInventory(holder, shopSize(), Text.component(title));
         fillShop(holder.inventory, player);
         player.openInventory(holder.inventory);
     }
@@ -236,7 +240,7 @@ public final class Menus implements Listener {
         }
 
         for (String command : product.commands()) {
-            Bukkit.dispatchCommand(Bukkit.getConsoleSender(), command.replace("%player%", player.getName()));
+            runCommand(player, command);
         }
         for (ConfigurationSection line : product.give()) {
             ItemStack stack = item(line.getString("material", "STONE").toUpperCase(Locale.ROOT),
@@ -256,6 +260,19 @@ public final class Menus implements Listener {
                 PlainTextComponentSerializer.plainText().serialize(Text.component(product.name()))));
         player.playSound(player.getLocation(), Sound.ENTITY_EXPERIENCE_ORB_PICKUP, 1f, 1.1f);
         fillShop(player.getOpenInventory().getTopInventory(), player);
+    }
+
+    /** A shop reward line. Same tags as our menus: {@code [console]} (the default), {@code [player]}, {@code [message]}
+     * and {@code [close]}. */
+    private void runCommand(Player player, String line) {
+        Text.Tagged tagged = Text.tag(line);
+        String filled = tagged.rest().replace("%player%", player.getName());
+        switch (tagged.tag()) {
+            case "player" -> player.performCommand(filled);
+            case "message" -> player.sendMessage(Text.component(filled));
+            case "close" -> player.closeInventory();
+            default -> Bukkit.dispatchCommand(Bukkit.getConsoleSender(), filled);
+        }
     }
 
     // ---- clicks ----

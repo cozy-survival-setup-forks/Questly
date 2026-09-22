@@ -43,6 +43,15 @@ class TextTest {
     }
 
     @Test
+    void commandLinesSplitIntoTheirTagAndRest() {
+        assertEquals("console", Text.tag("[console] give %player% diamond 1").tag());
+        assertEquals("give %player% diamond 1", Text.tag("[console] give %player% diamond 1").rest());
+        assertEquals("player", Text.tag("[player] spawn").tag());
+        assertEquals("", Text.tag("give %player% diamond 1").tag());
+        assertEquals("give %player% diamond 1", Text.tag("give %player% diamond 1").rest());
+    }
+
+    @Test
     void timesAreShownAsAClock() {
         assertEquals("00:00", Duration.clock(0));
         assertEquals("00:01", Duration.clock(1));

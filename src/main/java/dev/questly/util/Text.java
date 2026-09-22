@@ -4,6 +4,7 @@ import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.TextDecoration;
 import net.kyori.adventure.text.minimessage.MiniMessage;
 
+import java.util.Locale;
 import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -16,6 +17,18 @@ public final class Text {
     private static final Pattern CODE = Pattern.compile("&([0-9a-fk-orA-FK-OR])");
     private static final String[] COLORS = {"black", "dark_blue", "dark_green", "dark_aqua", "dark_red", "dark_purple",
             "gold", "gray", "dark_gray", "blue", "green", "aqua", "red", "light_purple", "yellow", "white"};
+
+    private static final Pattern TAG = Pattern.compile("^\\[(\\w+)]\\s*(.*)$");
+
+    /** A DeluxeMenus-style command line split into its {@code [tag]} and the rest. The tag is empty when there is none. */
+    public record Tagged(String tag, String rest) {
+    }
+
+    /** Splits a line such as {@code "[console] give %player% diamond 1"}. */
+    public static Tagged tag(String line) {
+        Matcher matcher = TAG.matcher(line.trim());
+        return matcher.matches() ? new Tagged(matcher.group(1).toLowerCase(Locale.ROOT), matcher.group(2)) : new Tagged("", line.trim());
+    }
 
     private Text() {
     }

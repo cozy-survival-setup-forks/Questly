@@ -3,6 +3,7 @@ version: '${version}'
 main: dev.questly.QuestlyPlugin
 api-version: '1.21'
 description: A quest board where players race to finish quests and win points
+authors: [Groovified]
 softdepend:
   - PlaceholderAPI
 

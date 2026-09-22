@@ -70,6 +70,33 @@ With `prevent-cheating: true`, which every quest that comes with the plugin has:
 
 Players in creative or spectator mode get no progress.
 
+## Shop
+
+`shop.yml` uses the same layout as a DeluxeMenus menu, so the menu style converter can restyle it:
+
+```yaml
+menu_title: "&#FF9558Quest Shop"
+size: 27
+items:
+  diamonds:
+    slot: 10
+    price: 10
+    material: DIAMOND
+    display_name: "&#9ED8FF5 Diamonds"
+    lore: ["&fPrice: %price% points"]
+    give:
+      - material: DIAMOND
+        amount: 5
+    left_click_commands:
+      - "[console] xp add %player% 500 points"
+      - "[message] Thanks for shopping!"
+```
+
+`give` hands over an item directly (useful for things no command can give cleanly, like a plain stack of
+diamonds). `left_click_commands` run as the console by default; tag a line `[player]` to run it as the buyer,
+`[message]` to send them a line, or `[close]` to close the shop. A shop.yml from before this layout (`title`,
+`rows`, `name`, `commands`) still loads.
+
 ## Commands
 
 | Command | Use |

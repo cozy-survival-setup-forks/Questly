@@ -1,9 +1,14 @@
 # What players can buy with quest points, in /questly shop.
-# Every item has a price in quest points, and what the buyer gets: commands run by the console
-# (%player% is the buyer), items, or both.
+# Same layout as our other menus (menu_title, size, items with material/slot/display_name/lore/
+# left_click_commands), so the menu style converter can restyle it too.
+#
+# left_click_commands run as the console unless tagged: [player] runs it as the buyer,
+# [message] sends the buyer a line, [close] closes the shop. %player% is the buyer's name.
+# "give" hands the buyer an item directly instead of (or as well as) running a command, for
+# rewards that need no permission plugin or economy command.
 
-title: "&#FF9558Quest Shop"
-rows: 3
+menu_title: "&#FF9558Quest Shop"
+size: 27
 filler: BLACK_STAINED_GLASS_PANE
 
 items:
@@ -11,7 +16,7 @@ items:
     slot: 10
     price: 10
     material: DIAMOND
-    name: "&#9ED8FF5 Diamonds"
+    display_name: "&#9ED8FF5 Diamonds"
     lore:
       - "&#B6C1C8Shop"
       - ""
@@ -24,19 +29,19 @@ items:
     slot: 12
     price: 6
     material: EXPERIENCE_BOTTLE
-    name: "&#A8E6A3500 Experience"
+    display_name: "&#A8E6A3500 Experience"
     lore:
       - "&#B6C1C8Shop"
       - ""
       - "&fPrice: &#FF8BB0%price% points"
       - "&fYou have: &#FF8BB0%points% points"
-    commands:
-      - "xp add %player% 500 points"
+    left_click_commands:
+      - "[console] xp add %player% 500 points"
   netherite:
     slot: 14
     price: 40
     material: NETHERITE_INGOT
-    name: "&#FFC8A2Netherite Ingot"
+    display_name: "&#FFC8A2Netherite Ingot"
     lore:
       - "&#B6C1C8Shop"
       - ""
@@ -49,7 +54,7 @@ items:
     slot: 16
     price: 8
     material: ENCHANTED_GOLDEN_APPLE
-    name: "&#FFE29AEnchanted Golden Apple"
+    display_name: "&#FFE29AEnchanted Golden Apple"
     lore:
       - "&#B6C1C8Shop"
       - ""
