@@ -48,6 +48,16 @@ public final class Settings {
         return config.getString("gui.title", "Quest Board");
     }
 
+    /** Rows of the quest board, or 0 to fit the quests with a filler row above and below. */
+    public int guiRows() {
+        return Math.max(0, Math.min(6, config.getInt("gui.rows", 0)));
+    }
+
+    /** The slots the quests are shown in, or an empty list to use the rows in the middle. */
+    public java.util.List<Integer> guiQuestSlots() {
+        return config.getIntegerList("gui.quest-slots");
+    }
+
     public String filler() {
         return config.getString("gui.filler", "BLACK_STAINED_GLASS_PANE").toUpperCase(Locale.ROOT);
     }

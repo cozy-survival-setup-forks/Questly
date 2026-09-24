@@ -176,19 +176,48 @@ public final class Menus implements Listener {
         return stack == null ? filler(plugin.settings().filler()) : stack;
     }
 
+    /** Rows of the board: {@code gui.rows} if set, otherwise enough for every quest with a filler row above and below. */
+    private int boardRows(int quests) {
+        int needed = Math.max(1, (quests + 8) / 9);
+        int rows = plugin.settings().guiRows();
+        if (rows <= 0) rows = Math.min(6, needed + 2);
+        return Math.max(needed, Math.min(6, rows));
+    }
+
+    /**
+     * The inventory slot of every quest, in order. {@code gui.quest-slots} if it has enough valid slots, otherwise the
+     * quests fill the rows in the middle of the board.
+     */
+    private List<Integer> questSlots(int quests, int size) {
+        List<Integer> configured = new ArrayList<>();
+        for (int slot : plugin.settings().guiQuestSlots()) {
+            if (slot >= 0 && slot < size && !configured.contains(slot)) configured.add(slot);
+        }
+        if (configured.size() >= quests) return configured.subList(0, quests);
+
+        int rows = size / 9;
+        int used = (quests + 8) / 9;
+        int first = ((rows - used) / 2) * 9;
+        List<Integer> slots = new ArrayList<>();
+        for (int i = 0; i < quests; i++) slots.add(first + i);
+        return slots;
+    }
+
     public void openBoard(Player player) {
-        int slots = service.board().slots().size();
-        int rows = Math.min(6, (slots + 8) / 9);
+        int quests = service.board().slots().size();
         BoardHolder holder = new BoardHolder();
-        holder.inventory = Bukkit.createInventory(holder, rows * 9, Text.component(plugin.settings().guiTitle()));
+        holder.inventory = Bukkit.createInventory(holder, boardRows(quests) * 9, Text.component(plugin.settings().guiTitle()));
         fillBoard(holder.inventory, player);
         player.openInventory(holder.inventory);
     }
 
     private void fillBoard(Inventory inventory, Player viewer) {
-        List<Board.Slot> slots = service.board().slots();
-        for (int i = 0; i < inventory.getSize(); i++) {
-            inventory.setItem(i, i < slots.size() ? questItem(slots.get(i), viewer) : filler(plugin.settings().filler()));
+        List<Board.Slot> quests = service.board().slots();
+        List<Integer> where = questSlots(quests.size(), inventory.getSize());
+        ItemStack fill = filler(plugin.settings().filler());
+        for (int i = 0; i < inventory.getSize(); i++) inventory.setItem(i, fill);
+        for (int i = 0; i < quests.size() && i < where.size(); i++) {
+            inventory.setItem(where.get(i), questItem(quests.get(i), viewer));
         }
     }
 

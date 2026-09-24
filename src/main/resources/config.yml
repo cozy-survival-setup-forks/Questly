@@ -23,8 +23,13 @@ chat:
 
 gui:
   title: "&#FF9558Quest Board"
-  # Fills the slots of the board that have no quest.
+  # Fills every slot of the board that has no quest.
   filler: BLACK_STAINED_GLASS_PANE
+  # Rows of the board (1-6). 0 fits the quests and adds a row of filler above and below.
+  rows: 0
+  # Where the quests go, as inventory slots (0 is the top left). Leave empty to fill the rows in the middle.
+  # Needs a slot for every quest, otherwise the middle rows are used.
+  quest-slots: []
   # Shown in the place of a quest that was won, until the next one starts.
   cooldown-item:
     material: CLOCK
