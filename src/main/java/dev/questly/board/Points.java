@@ -1,8 +1,8 @@
 package dev.questly.board;
 
-import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 
 /** The quest points of every player. Kept in memory and saved by whoever listens for changes. */
 public final class Points {
@@ -12,8 +12,10 @@ public final class Points {
         void changed(UUID player, String name, int points);
     }
 
-    private final Map<UUID, Integer> values = new HashMap<>();
-    private final Map<UUID, String> names = new HashMap<>();
+    // Concurrent, not just HashMap: PlaceholderAPI often resolves %questly_points% from an async
+    // thread (TAB/scoreboard plugins), while every write here happens on the main thread.
+    private final Map<UUID, Integer> values = new ConcurrentHashMap<>();
+    private final Map<UUID, String> names = new ConcurrentHashMap<>();
     private Listener listener = (player, name, points) -> { };
 
     public void listen(Listener listener) {

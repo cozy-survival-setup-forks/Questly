@@ -135,14 +135,25 @@ public final class BoardService {
         storage.takePending(id).thenAccept(commands -> {
             if (commands.isEmpty()) return;
             Bukkit.getScheduler().runTask(plugin, () -> {
+                Player online = Bukkit.getPlayer(id);
+                if (online == null) {
+                    // Quit in the gap between the database read and this tick running. The rows are
+                    // already deleted from storage (takePending took them), so put them back instead
+                    // of dispatching commands against nobody and losing the reward for good.
+                    for (String command : commands) storage.addPending(id, command);
+                    return;
+                }
                 for (String command : commands) {
                     Bukkit.dispatchCommand(Bukkit.getConsoleSender(), command);
                 }
-                Player online = Bukkit.getPlayer(id);
-                if (online != null) {
-                    plugin.messages().send(online, "reward-waiting", Map.of("%amount%", String.valueOf(commands.size())));
-                }
+                plugin.messages().send(online, "reward-waiting", Map.of("%amount%", String.valueOf(commands.size())));
             });
+        }).exceptionally(e -> {
+            // Without this, a failure here (e.g. the plugin disabling right as this runs, which makes
+            // runTask throw) is swallowed by the future with no trace, and the pending rows are
+            // already gone from the database - the rewards would just vanish silently.
+            plugin.getLogger().log(java.util.logging.Level.WARNING, "Failed to deliver pending rewards for " + id, e);
+            return null;
         });
     }
 

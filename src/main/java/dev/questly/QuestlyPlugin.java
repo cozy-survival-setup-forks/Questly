@@ -15,17 +15,21 @@ import org.bukkit.Bukkit;
 import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
 import org.bukkit.Registry;
+import org.bukkit.configuration.InvalidConfigurationException;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.plugin.java.JavaPlugin;
+import org.bukkit.scheduler.BukkitTask;
 
 import java.io.File;
+import java.io.IOException;
 import java.util.List;
 import java.util.Locale;
 import java.util.Random;
+import java.util.logging.Level;
 
 /**
  * Questly: a board of quests that players race to finish. The quests are in quests.yml, and everything is
@@ -40,6 +44,7 @@ public final class QuestlyPlugin extends JavaPlugin implements Listener {
     private BoardService service;
     private PlacedBlocks placed;
     private Menus menus;
+    private BukkitTask saveTask;
 
     @Override
     public void onEnable() {
@@ -47,7 +52,12 @@ public final class QuestlyPlugin extends JavaPlugin implements Listener {
         settings = new Settings(getConfig());
         messages = new Messages(this);
         messages.load();
-        quests = loadQuests();
+        try {
+            quests = loadQuests();
+        } catch (InvalidConfigurationException | IOException e) {
+            getLogger().log(Level.SEVERE, "quests.yml is broken, the board will stay empty until it's fixed and reloaded", e);
+            quests = new QuestLibrary(List.of());
+        }
         if (quests.size() == 0) {
             getLogger().warning("There are no quests in quests.yml, the board will stay empty.");
         } else {
@@ -63,8 +73,12 @@ public final class QuestlyPlugin extends JavaPlugin implements Listener {
             SqliteStorage.Loaded loaded = storage.open();
             loaded.points().forEach(saved -> points.load(saved.id(), saved.name(), saved.points()));
             board.restore(loaded.slots());
+            // If slots: was ever shrunk without a matching cleanup (an older version of this plugin
+            // didn't do one), drop whatever's left past the current count now, before it can come
+            // back to life on some future restart where slots: is raised again.
+            storage.deleteSlotsFrom(settings.slots());
         } catch (Exception ex) {
-            getLogger().severe("Could not open data.db, disabling Questly: " + ex);
+            getLogger().log(Level.SEVERE, "Could not open data.db, disabling Questly", ex);
             getServer().getPluginManager().disablePlugin(this);
             return;
         }
@@ -98,11 +112,7 @@ public final class QuestlyPlugin extends JavaPlugin implements Listener {
             service.tick();
             menus.refresh();
         }, 20L, 20L);
-        long save = settings.saveSeconds() * 20L;
-        Bukkit.getScheduler().runTaskTimer(this, () -> {
-            service.saveDirty();
-            placed.flush();
-        }, save, save);
+        saveTask = scheduleSaveTask();
 
         for (Player player : Bukkit.getOnlinePlayers()) {
             service.deliverPending(player);
@@ -125,7 +135,11 @@ public final class QuestlyPlugin extends JavaPlugin implements Listener {
     private static final QuestParser.Names NAMES = new QuestParser.Names() {
         @Override
         public boolean entity(String name) {
-            return Registry.ENTITY_TYPE.get(NamespacedKey.minecraft(name.toLowerCase(Locale.ROOT))) != null;
+            // NamespacedKey.minecraft(...) throws for anything outside [a-z0-9/._-] (a space, an
+            // explicit "minecraft:" prefix, mixed case...) instead of just saying "not an entity" -
+            // a single typo'd extra: in quests.yml would otherwise crash onEnable or a reload.
+            NamespacedKey key = NamespacedKey.fromString(name.toLowerCase(Locale.ROOT));
+            return key != null && Registry.ENTITY_TYPE.get(key) != null;
         }
 
         @Override
@@ -141,24 +155,48 @@ public final class QuestlyPlugin extends JavaPlugin implements Listener {
         }
     };
 
-    private QuestLibrary loadQuests() {
+    /** @throws InvalidConfigurationException or IOException if quests.yml doesn't parse. */
+    private QuestLibrary loadQuests() throws InvalidConfigurationException, IOException {
         File file = new File(getDataFolder(), "quests.yml");
         if (!file.exists()) saveResource("quests.yml", false);
-        List<dev.questly.quest.Quest> loaded = QuestParser.parse(YamlConfiguration.loadConfiguration(file), getLogger(), NAMES);
+        YamlConfiguration yaml = new YamlConfiguration();
+        yaml.load(file);
+        List<dev.questly.quest.Quest> loaded = QuestParser.parse(yaml, getLogger(), NAMES);
         return new QuestLibrary(loaded);
     }
 
-    /** Reads every file again. Returns how many quests there are. */
+    private BukkitTask scheduleSaveTask() {
+        long save = settings.saveSeconds() * 20L;
+        return Bukkit.getScheduler().runTaskTimer(this, () -> {
+            service.saveDirty();
+            placed.flush();
+        }, save, save);
+    }
+
+    /**
+     * Reads every file again. Returns how many quests there are. If quests.yml is broken, the quests
+     * already loaded (and every board slot's progress) are kept instead of being wiped - a plain
+     * {@link YamlConfiguration#loadConfiguration} would otherwise turn a YAML typo into an empty
+     * config with no error, and an empty library clears every slot.
+     */
     public int reloadAll() {
         reloadConfig();
         settings = new Settings(getConfig());
         messages.load();
-        quests = loadQuests();
+        try {
+            quests = loadQuests();
+        } catch (InvalidConfigurationException | IOException e) {
+            getLogger().log(Level.SEVERE, "quests.yml is broken, keeping the quests already loaded", e);
+            return quests.size();
+        }
         service.board().setLibrary(quests);
         service.board().configure(settings.slots(), settings.cooldownSeconds(), settings.uniqueQuests());
+        storage.deleteSlotsFrom(settings.slots());
         service.board().fill();
         menus.loadShop();
         service.saveAll();
+        if (saveTask != null) saveTask.cancel();
+        saveTask = scheduleSaveTask();
         return quests.size();
     }
 

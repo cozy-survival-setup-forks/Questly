@@ -16,6 +16,7 @@ import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
+import org.bukkit.event.inventory.ClickType;
 import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.event.inventory.InventoryDragEvent;
 import org.bukkit.inventory.Inventory;
@@ -90,18 +91,31 @@ public final class Menus implements Listener {
             List<String> commands = entry.contains("left_click_commands")
                     ? entry.getStringList("left_click_commands") : entry.getStringList("commands");
             List<ConfigurationSection> give = new ArrayList<>();
+            boolean giveOk = true;
             for (Map<?, ?> map : entry.getMapList("give")) {
                 YamlConfiguration line = new YamlConfiguration();
                 map.forEach((key, value) -> line.set(String.valueOf(key), value));
+                String giveMaterial = line.getString("material", "STONE").toUpperCase(Locale.ROOT);
+                Material giveType = Material.matchMaterial(giveMaterial);
+                if (giveType == null || !giveType.isItem()) {
+                    plugin.getLogger().warning("shop.yml: " + id + " has a give line with '" + giveMaterial
+                            + "', which is not an item. Skipping it.");
+                    giveOk = false;
+                    continue;
+                }
                 give.add(line);
             }
 
+            Material displayType = Material.matchMaterial(material);
             if (slot < 0 || slot >= size) {
                 plugin.getLogger().warning("shop.yml: " + id + " has the slot " + slot + ", which is not inside the shop. Skipping it.");
             } else if (price < 1) {
                 plugin.getLogger().warning("shop.yml: " + id + " needs a price of at least 1. Skipping it.");
-            } else if (Material.matchMaterial(material) == null) {
+            } else if (displayType == null || !displayType.isItem()) {
                 plugin.getLogger().warning("shop.yml: " + id + " shows '" + material + "', which is not an item. Skipping it.");
+            } else if (!giveOk) {
+                plugin.getLogger().warning("shop.yml: " + id + " has a broken give line - fix it before this product is sold, "
+                        + "or a player would pay and get only the working parts. Skipping it.");
             } else if (commands.isEmpty() && give.isEmpty()) {
                 plugin.getLogger().warning("shop.yml: " + id + " gives nothing, add left_click_commands or give. Skipping it.");
             } else {
@@ -113,7 +127,13 @@ public final class Menus implements Listener {
 
     /** {@code size} (a DeluxeMenus-style inventory row count) if set, otherwise the older {@code rows}. */
     private int shopSize() {
-        if (shop.contains("size")) return Math.max(9, Math.min(54, shop.getInt("size", 27)));
+        if (shop.contains("size")) {
+            int size = shop.getInt("size", 27);
+            // A chest inventory must be a multiple of 9 - anything else throws when the shop opens.
+            int rounded = Math.max(1, Math.min(6, (size + 8) / 9)) * 9;
+            if (rounded != size) plugin.getLogger().warning("shop.yml: size " + size + " is not a multiple of 9, using " + rounded);
+            return rounded;
+        }
         return Math.max(1, Math.min(6, shop.getInt("rows", 3))) * 9;
     }
 
@@ -217,7 +237,11 @@ public final class Menus implements Listener {
         ItemStack fill = filler(plugin.settings().filler());
         for (int i = 0; i < inventory.getSize(); i++) inventory.setItem(i, fill);
         for (int i = 0; i < quests.size() && i < where.size(); i++) {
-            inventory.setItem(where.get(i), questItem(quests.get(i), viewer));
+            int slot = where.get(i);
+            // A reload that raises the slot count can hand back an index past the size of a board
+            // that's already open - refresh() runs every second, so this would otherwise throw
+            // repeatedly until the viewer closes it.
+            if (slot < inventory.getSize()) inventory.setItem(slot, questItem(quests.get(i), viewer));
         }
     }
 
@@ -225,9 +249,9 @@ public final class Menus implements Listener {
     public void refresh() {
         for (Player player : Bukkit.getOnlinePlayers()) {
             Inventory top = player.getOpenInventory().getTopInventory();
-            if (top.getHolder() instanceof BoardHolder) {
+            if (top.getHolder(false) instanceof BoardHolder) {
                 fillBoard(top, player);
-            } else if (top.getHolder() instanceof ShopHolder) {
+            } else if (top.getHolder(false) instanceof ShopHolder) {
                 fillShop(top, player);
             }
         }
@@ -288,7 +312,11 @@ public final class Menus implements Listener {
         plugin.messages().send(player, "shop-bought", Map.of("%item%",
                 PlainTextComponentSerializer.plainText().serialize(Text.component(product.name()))));
         player.playSound(player.getLocation(), Sound.ENTITY_EXPERIENCE_ORB_PICKUP, 1f, 1.1f);
-        fillShop(player.getOpenInventory().getTopInventory(), player);
+        // A [close] or [player] command above may have closed the shop or opened a different menu -
+        // only refill if the player is still looking at this shop, or filler items (or another
+        // product's display item) would be written into whatever inventory they have open now.
+        Inventory top = player.getOpenInventory().getTopInventory();
+        if (top.getHolder(false) instanceof ShopHolder) fillShop(top, player);
     }
 
     /** A shop reward line. Same tags as our menus: {@code [console]} (the default), {@code [player]}, {@code [message]}
@@ -297,9 +325,12 @@ public final class Menus implements Listener {
         Text.Tagged tagged = Text.tag(line);
         String filled = tagged.rest().replace("%player%", player.getName());
         switch (tagged.tag()) {
-            case "player" -> player.performCommand(filled);
+            // Deferred a tick: Bukkit doesn't allow closing (or opening another) inventory from
+            // inside an InventoryClickEvent, and running the command here first also avoids the
+            // stale-refill problem above for the common [player] case of opening another menu.
+            case "player" -> Bukkit.getScheduler().runTask(plugin, () -> player.performCommand(filled));
             case "message" -> player.sendMessage(Text.component(filled));
-            case "close" -> player.closeInventory();
+            case "close" -> Bukkit.getScheduler().runTask(plugin, () -> player.closeInventory());
             default -> Bukkit.dispatchCommand(Bukkit.getConsoleSender(), filled);
         }
     }
@@ -308,11 +339,16 @@ public final class Menus implements Listener {
 
     @EventHandler
     public void onClick(InventoryClickEvent event) {
-        InventoryHolder holder = event.getView().getTopInventory().getHolder();
+        InventoryHolder holder = event.getView().getTopInventory().getHolder(false);
         if (!(holder instanceof BoardHolder) && !(holder instanceof ShopHolder)) return;
 
         event.setCancelled(true);
-        if (holder instanceof ShopHolder && event.getWhoClicked() instanceof Player player
+        // Only a genuine single purchase click - a double-click, a shift-click, a number-key swap
+        // or a drop-key all send their own InventoryClickEvent for the same slot, and would otherwise
+        // buy the product again for every one of them.
+        ClickType click = event.getClick();
+        boolean singlePurchaseClick = click == ClickType.LEFT || click == ClickType.RIGHT;
+        if (holder instanceof ShopHolder && singlePurchaseClick && event.getWhoClicked() instanceof Player player
                 && event.getClickedInventory() == event.getView().getTopInventory()) {
             Product product = products.get(event.getSlot());
             if (product != null) buy(player, product);
@@ -321,7 +357,7 @@ public final class Menus implements Listener {
 
     @EventHandler
     public void onDrag(InventoryDragEvent event) {
-        InventoryHolder holder = event.getView().getTopInventory().getHolder();
+        InventoryHolder holder = event.getView().getTopInventory().getHolder(false);
         if (holder instanceof BoardHolder || holder instanceof ShopHolder) event.setCancelled(true);
     }
 }

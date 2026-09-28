@@ -7,7 +7,10 @@ import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.configuration.file.YamlConfiguration;
 
 import java.io.File;
+import java.io.IOException;
+import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.io.Reader;
 import java.nio.charset.StandardCharsets;
 import java.util.Map;
 
@@ -26,9 +29,19 @@ public final class Messages {
         if (!target.exists()) plugin.saveResource("lang.yml", false);
         file = YamlConfiguration.loadConfiguration(target);
 
-        var defaults = plugin.getResource("lang.yml");
-        if (defaults != null) {
-            file.setDefaults(YamlConfiguration.loadConfiguration(new InputStreamReader(defaults, StandardCharsets.UTF_8)));
+        try (InputStream defaults = plugin.getResource("lang.yml")) {
+            if (defaults != null) {
+                try (Reader reader = new InputStreamReader(defaults, StandardCharsets.UTF_8)) {
+                    file.setDefaults(YamlConfiguration.loadConfiguration(reader));
+                    // Every lookup below passes its own explicit default ("") to getString/
+                    // getStringList, which skips consulting getDefaults() entirely - without this, a
+                    // key missing from an admin's older lang.yml just goes silently empty instead of
+                    // using the bundled text.
+                    file.options().copyDefaults(true);
+                }
+            }
+        } catch (IOException e) {
+            plugin.getLogger().warning("Could not read the bundled lang.yml: " + e.getMessage());
         }
     }
 

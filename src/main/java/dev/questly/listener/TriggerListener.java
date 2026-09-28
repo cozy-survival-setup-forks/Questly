@@ -23,6 +23,7 @@ import org.bukkit.event.entity.CreatureSpawnEvent;
 import org.bukkit.event.entity.EntityBreedEvent;
 import org.bukkit.event.entity.EntityDeathEvent;
 import org.bukkit.event.entity.EntityTameEvent;
+import org.bukkit.event.entity.EntityTransformEvent;
 import org.bukkit.event.player.PlayerFishEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.persistence.PersistentDataType;
@@ -58,18 +59,31 @@ public final class TriggerListener implements Listener {
         this.farmed = new NamespacedKey(plugin, "farmed");
     }
 
-    // Mobs that came out of a spawner or a spawn egg are marked, killing them gives no progress.
+    // Mobs that came out of a spawner, a spawn egg, a trial spawner, a zombie reinforcement, or a
+    // /summon or other plugin are marked, killing them gives no progress. Bred and hatched mobs are
+    // deliberately left counting - unlike a spawner, breeding takes real player effort.
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void onSpawn(CreatureSpawnEvent event) {
         switch (event.getSpawnReason()) {
-            case SPAWNER, SPAWNER_EGG, DISPENSE_EGG ->
+            case SPAWNER, SPAWNER_EGG, DISPENSE_EGG, TRIAL_SPAWNER, REINFORCEMENTS, COMMAND, CUSTOM ->
                     event.getEntity().getPersistentDataContainer().set(farmed, PersistentDataType.BYTE, (byte) 1);
             default -> {
             }
         }
     }
 
-    @EventHandler(priority = EventPriority.MONITOR)
+    // A farmed mob that converts into another entity (a zombie drowning, a stray freezing, a slime
+    // splitting) would otherwise leave the new entity unmarked, since conversion creates a fresh
+    // entity rather than mutating the old one.
+    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
+    public void onTransform(EntityTransformEvent event) {
+        if (!event.getEntity().getPersistentDataContainer().has(farmed, PersistentDataType.BYTE)) return;
+        for (Entity result : event.getTransformedEntities()) {
+            result.getPersistentDataContainer().set(farmed, PersistentDataType.BYTE, (byte) 1);
+        }
+    }
+
+    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void onDeath(EntityDeathEvent event) {
         Player killer = event.getEntity().getKiller();
         if (killer == null) return;
@@ -80,6 +94,10 @@ public final class TriggerListener implements Listener {
 
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void onPlace(BlockPlaceEvent event) {
+        // canBuild() can be false (a WorldGuard region, etc.) even when the event itself isn't
+        // cancelled - the placement is reverted client-side, so marking it would tag a block that was
+        // never really placed here as "placed" forever.
+        if (!event.canBuild()) return;
         placed.mark(event.getBlockPlaced());
     }
 

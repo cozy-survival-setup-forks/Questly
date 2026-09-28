@@ -21,8 +21,11 @@ import java.util.regex.Pattern;
  */
 public final class QuestlyExpansion extends PlaceholderExpansion {
 
-    private static final Pattern SLOT = Pattern.compile("(\\d+)_(.+)");
-    private static final Pattern TOP = Pattern.compile("top_(\\d+)_(name|score)");
+    // Capped at 3 digits so Integer.parseInt below can never overflow - %questly_99999999999_title%
+    // (from a malformed menu placeholder elsewhere) used to throw NumberFormatException into
+    // whatever plugin resolved it, instead of this expansion just answering "not one of ours".
+    private static final Pattern SLOT = Pattern.compile("(\\d{1,3})_(.+)");
+    private static final Pattern TOP = Pattern.compile("top_(\\d{1,3})_(name|score)");
 
     private final QuestlyPlugin plugin;
 
@@ -51,11 +54,30 @@ public final class QuestlyExpansion extends PlaceholderExpansion {
     }
 
     @Override
+    public @NotNull String getRequiredPlugin() {
+        // Without this, PlaceholderAPI has no reason to unregister the expansion when Questly is
+        // disabled (by a plugin manager or a reload), so it keeps serving from the old classloader.
+        return "Questly";
+    }
+
+    @Override
     public @Nullable String onPlaceholderRequest(Player player, @NotNull String params) {
         if (player == null) return "";
         String request = params.toLowerCase(Locale.ROOT);
         if (request.equals("points")) return String.valueOf(plugin.service().points().get(player.getUniqueId()));
 
+        try {
+            return boardPlaceholder(player, request);
+        } catch (java.util.ConcurrentModificationException e) {
+            // Board is documented main-thread-only, but scoreboard/TAB plugins commonly resolve
+            // PlaceholderAPI placeholders from an async thread. A torn read here is rare and this
+            // placeholder refreshes constantly, so skipping one tick's value beats crashing the
+            // caller's async task.
+            return "";
+        }
+    }
+
+    private @Nullable String boardPlaceholder(Player player, String request) {
         Matcher slotMatch = SLOT.matcher(request);
         if (!slotMatch.matches()) return null;
         Board.Slot slot = plugin.service().board().slot(Integer.parseInt(slotMatch.group(1)) - 1);

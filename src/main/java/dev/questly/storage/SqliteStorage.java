@@ -142,8 +142,32 @@ public final class SqliteStorage implements AutoCloseable {
             } catch (SQLException ex) {
                 connection.rollback();
                 throw ex;
+            } catch (RuntimeException ex) {
+                // Without this, a RuntimeException here skips straight to the finally below, and
+                // setAutoCommit(true) on a connection with an uncommitted transaction pending
+                // implicitly commits whatever ran so far instead of rolling it back - e.g. the slot
+                // row and the DELETE of its old scores, but not the INSERT of the new ones.
+                connection.rollback();
+                throw ex;
             } finally {
                 connection.setAutoCommit(true);
+            }
+        });
+    }
+
+    /**
+     * Deletes any slot and score rows at or past {@code slotCount} - called whenever the board is
+     * (re)configured, so shrinking {@code slots:} in config.yml and later raising it again doesn't
+     * bring back a stale quest and leaderboard from before the shrink.
+     */
+    public void deleteSlotsFrom(int slotCount) {
+        run("dropping unused board slots", () -> {
+            try (PreparedStatement slots = connection.prepareStatement("DELETE FROM questly_slots WHERE slot >= ?");
+                 PreparedStatement scores = connection.prepareStatement("DELETE FROM questly_scores WHERE slot >= ?")) {
+                slots.setInt(1, slotCount);
+                slots.executeUpdate();
+                scores.setInt(1, slotCount);
+                scores.executeUpdate();
             }
         });
     }
@@ -178,13 +202,23 @@ public final class SqliteStorage implements AutoCloseable {
                 } catch (SQLException ex) {
                     connection.rollback();
                     throw ex;
+                } catch (RuntimeException ex) {
+                    connection.rollback();
+                    throw ex;
                 } finally {
                     connection.setAutoCommit(true);
                 }
                 result.complete(commands);
-            } catch (SQLException ex) {
-                log.log(Level.WARNING, "Could not read the rewards waiting for " + player, ex);
-                result.complete(List.of());
+            } catch (SQLException | RuntimeException ex) {
+                // Complete the future either way (never leave callers hanging) - but distinguish a
+                // real read failure (safe to answer "nothing waiting") from an unexpected bug, which
+                // should surface as a failed future instead of silently pretending there was nothing.
+                if (ex instanceof SQLException) {
+                    log.log(Level.WARNING, "Could not read the rewards waiting for " + player, ex);
+                    result.complete(List.of());
+                } else {
+                    result.completeExceptionally(ex);
+                }
             }
         });
         return result;
@@ -207,13 +241,26 @@ public final class SqliteStorage implements AutoCloseable {
     @Override
     public void close() {
         executor.shutdown();
+        boolean stopped = false;
         try {
-            if (!executor.awaitTermination(15, TimeUnit.SECONDS)) {
-                log.warning("Saving is taking long, some of the last changes may not be written.");
+            stopped = executor.awaitTermination(15, TimeUnit.SECONDS);
+            if (!stopped) {
+                log.warning("Saving is taking long, forcing it to stop; some of the last changes may not be written.");
+                // Closing the connection out from under a write that's still running throws a
+                // confusing SQLException in that write instead of a clean shutdown - force the
+                // executor to stop first and wait for it to actually finish before closing.
+                executor.shutdownNow();
+                stopped = executor.awaitTermination(5, TimeUnit.SECONDS);
             }
-            if (connection != null) connection.close();
         } catch (InterruptedException ex) {
             Thread.currentThread().interrupt();
+        }
+        if (!stopped) {
+            log.warning("The storage thread did not stop in time; leaving the database connection open rather than risk closing it mid-write.");
+            return;
+        }
+        try {
+            if (connection != null) connection.close();
         } catch (SQLException ex) {
             log.log(Level.WARNING, "Could not close the database", ex);
         }

@@ -1,16 +1,25 @@
 package dev.questly.listener;
 
+import com.destroystokyo.paper.event.block.BlockDestroyEvent;
 import org.bukkit.Chunk;
 import org.bukkit.NamespacedKey;
 import org.bukkit.block.Block;
 import org.bukkit.block.BlockFace;
+import org.bukkit.entity.FallingBlock;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
+import org.bukkit.event.block.BlockBurnEvent;
 import org.bukkit.event.block.BlockExplodeEvent;
+import org.bukkit.event.block.BlockFadeEvent;
+import org.bukkit.event.block.BlockFromToEvent;
+import org.bukkit.event.block.BlockGrowEvent;
 import org.bukkit.event.block.BlockPistonExtendEvent;
 import org.bukkit.event.block.BlockPistonRetractEvent;
+import org.bukkit.event.block.LeavesDecayEvent;
+import org.bukkit.event.entity.EntityChangeBlockEvent;
 import org.bukkit.event.entity.EntityExplodeEvent;
+import org.bukkit.event.world.StructureGrowEvent;
 import org.bukkit.event.world.ChunkUnloadEvent;
 import org.bukkit.persistence.PersistentDataType;
 import org.bukkit.plugin.Plugin;
@@ -65,10 +74,16 @@ public final class PlacedBlocks implements Listener {
         });
     }
 
-    /** True if a player placed the block that stands here now. */
+    /**
+     * True if a player placed the block that stands here now. A mark stays valid across any in-place
+     * change of the block's type (tilling, hydration, ageing...) - only really removing the block
+     * clears it - so converting a placed block into a different material can't launder it into
+     * counting as natural. (It used to compare the stored type against the current one, which is
+     * exactly the loophole: dirt tilled from placed coarse dirt, or clay grown from placed dirt via
+     * mud, always looked "stale" and so counted as a natural find.)
+     */
     public boolean isPlaced(Block block) {
-        Integer kind = marksOf(block.getChunk()).blocks.get(pack(block));
-        return kind != null && kind == kind(block);
+        return marksOf(block.getChunk()).blocks.containsKey(pack(block));
     }
 
     public void mark(Block block) {
@@ -152,5 +167,62 @@ public final class PlacedBlocks implements Listener {
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void onExplode(BlockExplodeEvent event) {
         event.blockList().forEach(this::unmark);
+    }
+
+    /**
+     * A placed sand/gravel/anvil/... block that falls becomes a new FallingBlock entity at a
+     * different location, with no mark of its own - breaking it after it lands used to count as a
+     * natural find. Carry the mark onto the entity while it falls, and put it back where it lands.
+     */
+    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
+    public void onFall(EntityChangeBlockEvent event) {
+        if (!(event.getEntity() instanceof FallingBlock falling)) return;
+        Block block = event.getBlock();
+        if (event.getTo().isAir()) {
+            if (isPlaced(block)) {
+                falling.getPersistentDataContainer().set(key, PersistentDataType.BYTE, (byte) 1);
+                unmark(block);
+            }
+        } else if (falling.getPersistentDataContainer().has(key, PersistentDataType.BYTE)) {
+            mark(event.getBlock(), event.getTo().name().hashCode());
+        }
+    }
+
+    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
+    public void onBurn(BlockBurnEvent event) {
+        unmark(event.getBlock());
+    }
+
+    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
+    public void onLeavesDecay(LeavesDecayEvent event) {
+        unmark(event.getBlock());
+    }
+
+    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
+    public void onFromTo(BlockFromToEvent event) {
+        unmark(event.getToBlock());
+    }
+
+    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
+    public void onDestroy(BlockDestroyEvent event) {
+        unmark(event.getBlock());
+    }
+
+    /** Only unmark when the block actually turns to air - not a grass-to-dirt or farmland-to-dirt fade, or the block-type laundering this class exists to prevent comes right back. */
+    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
+    public void onFade(BlockFadeEvent event) {
+        if (event.getNewState().getType().isAir()) unmark(event.getBlock());
+    }
+
+    /** A sapling that grows into a tree, or a bamboo/cactus that grows a new segment, replaces whatever mark was there. */
+    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
+    public void onStructureGrow(StructureGrowEvent event) {
+        for (var blockState : event.getBlocks()) unmark(blockState.getBlock());
+    }
+
+    /** Melons, pumpkins and sugar cane growing into a new block. */
+    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
+    public void onGrow(BlockGrowEvent event) {
+        unmark(event.getBlock());
     }
 }
