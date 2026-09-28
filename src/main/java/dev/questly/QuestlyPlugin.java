@@ -48,6 +48,15 @@ public final class QuestlyPlugin extends JavaPlugin implements Listener {
 
     @Override
     public void onEnable() {
+        try {
+            enableInner();
+        } catch (RuntimeException e) {
+            getLogger().log(Level.SEVERE, "Questly could not start, check config.yml, quests.yml, shop.yml and lang.yml for mistakes", e);
+            getServer().getPluginManager().disablePlugin(this);
+        }
+    }
+
+    private void enableInner() {
         saveDefaultConfig();
         settings = new Settings(getConfig());
         messages = new Messages(this);
