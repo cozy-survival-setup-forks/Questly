@@ -127,8 +127,14 @@ diamonds). `left_click_commands` run as the console by default; tag a line `[pla
 
 - Everything is kept in `data.db` in the plugin folder, written in the background so the server never waits for the disk.
   Rewards for players who are offline are given when they join.
-- Nothing is downloaded when the server starts, and no libraries are bundled.
+- Nothing is downloaded when the server starts. The SQLite driver is bundled in the jar.
 - Everything runs on the main thread except writing to the file.
+
+## Telemetry
+
+On startup Questly sends a small anonymous beacon (plugin name/version, server software/version,
+online/max player counts, and a random ID with no player data) so we know which versions are in
+use. Turn it off with `metrics.enabled: false` in `config.yml`.
 
 ## Building
 
@@ -136,4 +142,4 @@ diamonds). `left_click_commands` run as the console by default; tag a line `[pla
 ./gradlew build
 ```
 
-The jar is in `build/libs`. Licensed under MIT.
+The jar is in `build/libs`. See `LICENSE`: free to run on your own servers, not for redistribution or resale.

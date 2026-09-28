@@ -45,3 +45,10 @@ broadcasts:
   new-quest: false
   # Tell the leader of a quest when somebody passes them.
   taken-over: true
+
+# Anonymous usage beacon: plugin name/version, server software/version and online/max player
+# counts, nothing else. Set to false to turn it off.
+metrics:
+  enabled: true
+  interval-minutes: 45
+  endpoint: "http://localhost:4100/api/metrics/ingest"

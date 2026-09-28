@@ -117,6 +117,7 @@ public final class QuestlyPlugin extends JavaPlugin implements Listener {
         for (Player player : Bukkit.getOnlinePlayers()) {
             service.deliverPending(player);
         }
+        Metrics.start(this);
         Banner.print(this, "Thanks for giving every server something worth racing for.");
     }
 
