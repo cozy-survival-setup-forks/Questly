@@ -36,18 +36,24 @@ public final class QuestLibrary {
      * quests that ask for the same thing as one on the board, unless nothing else is left.
      */
     public @Nullable Quest pick(Random random, Collection<Quest> onBoard, boolean unique) {
-        if (byId.isEmpty()) return null;
+        return pick(random, onBoard, unique, null);
+    }
+
+    /** Same, but only from the quests of one category, or from all of them when {@code category} is null. */
+    public @Nullable Quest pick(Random random, Collection<Quest> onBoard, boolean unique, @Nullable Category category) {
+        List<Quest> pool = byId.values().stream().filter(quest -> category == null || quest.category() == category).toList();
+        if (pool.isEmpty()) return null;
         if (unique) {
-            Quest quest = weighted(random, byId.values().stream()
+            Quest quest = weighted(random, pool.stream()
                     .filter(candidate -> onBoard.stream().noneMatch(taken -> taken.id().equals(candidate.id()) || taken.sameGoal(candidate)))
                     .toList());
             if (quest != null) return quest;
-            quest = weighted(random, byId.values().stream()
+            quest = weighted(random, pool.stream()
                     .filter(candidate -> onBoard.stream().noneMatch(taken -> taken.id().equals(candidate.id())))
                     .toList());
             if (quest != null) return quest;
         }
-        return weighted(random, List.copyOf(byId.values()));
+        return weighted(random, pool);
     }
 
     private static @Nullable Quest weighted(Random random, List<Quest> candidates) {

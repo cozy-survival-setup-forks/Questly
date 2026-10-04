@@ -8,6 +8,7 @@ import dev.questly.hook.QuestlyExpansion;
 import dev.questly.listener.DistanceTracker;
 import dev.questly.listener.PlacedBlocks;
 import dev.questly.listener.TriggerListener;
+import dev.questly.quest.Category;
 import dev.questly.quest.QuestLibrary;
 import dev.questly.quest.QuestParser;
 import dev.questly.storage.SqliteStorage;
@@ -58,7 +59,7 @@ public final class QuestlyPlugin extends JavaPlugin implements Listener {
 
     private void enableInner() {
         saveDefaultConfig();
-        settings = new Settings(getConfig());
+        settings = new Settings(getConfig(), getLogger());
         messages = new Messages(this);
         messages.load();
         try {
@@ -74,7 +75,7 @@ public final class QuestlyPlugin extends JavaPlugin implements Listener {
         }
 
         Board board = new Board(quests, new Random(), System::currentTimeMillis);
-        board.configure(settings.slots(), settings.cooldownSeconds(), settings.uniqueQuests());
+        board.configure(List.of(Category.values()), settings.slots(), settings.cooldownSeconds(), settings.uniqueQuests());
         Points points = new Points();
 
         storage = new SqliteStorage(new File(getDataFolder(), "data.db"), getLogger());
@@ -85,7 +86,7 @@ public final class QuestlyPlugin extends JavaPlugin implements Listener {
             // If slots: was ever shrunk without a matching cleanup (an older version of this plugin
             // didn't do one), drop whatever's left past the current count now, before it can come
             // back to life on some future restart where slots: is raised again.
-            storage.deleteSlotsFrom(settings.slots());
+            storage.deleteSlotsFrom(board.slots().size());
         } catch (Exception ex) {
             getLogger().log(Level.SEVERE, "Could not open data.db, disabling Questly", ex);
             getServer().getPluginManager().disablePlugin(this);
@@ -192,7 +193,7 @@ public final class QuestlyPlugin extends JavaPlugin implements Listener {
      */
     public int reloadAll() {
         reloadConfig();
-        settings = new Settings(getConfig());
+        settings = new Settings(getConfig(), getLogger());
         messages.load();
         try {
             quests = loadQuests();
@@ -201,8 +202,8 @@ public final class QuestlyPlugin extends JavaPlugin implements Listener {
             return quests.size();
         }
         service.board().setLibrary(quests);
-        service.board().configure(settings.slots(), settings.cooldownSeconds(), settings.uniqueQuests());
-        storage.deleteSlotsFrom(settings.slots());
+        service.board().configure(List.of(Category.values()), settings.slots(), settings.cooldownSeconds(), settings.uniqueQuests());
+        storage.deleteSlotsFrom(service.board().slots().size());
         service.board().fill();
         menus.loadShop();
         service.saveAll();

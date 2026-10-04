@@ -1,5 +1,6 @@
 package dev.questly.board;
 
+import dev.questly.quest.Category;
 import dev.questly.quest.Quest;
 import dev.questly.quest.QuestLibrary;
 import dev.questly.quest.Trigger;
@@ -48,18 +49,29 @@ public final class Board {
     /** One place on the board. */
     public static final class Slot {
         private final int index;
+        private final @Nullable Category category;
         private @Nullable Quest quest;
         private boolean active = true;
         private long startedAt;
         private final Map<UUID, Entry> scores = new LinkedHashMap<>();
         private boolean dirty;
 
-        Slot(int index) {
+        Slot(int index, @Nullable Category category) {
             this.index = index;
+            this.category = category;
         }
 
         public int index() {
             return index;
+        }
+
+        /** The category of the quests this slot takes, or null when it takes any. */
+        public @Nullable Category category() {
+            return category;
+        }
+
+        boolean accepts(Quest quest) {
+            return category == null || quest.category() == category;
         }
 
         public @Nullable Quest quest() {
@@ -143,15 +155,74 @@ public final class Board {
         }
     }
 
+    /** One group of slots that take quests of any category. */
     public void configure(int slotCount, long cooldownSeconds, boolean unique) {
+        configure(List.of(), slotCount, cooldownSeconds, unique);
+    }
+
+    /**
+     * {@code perCategory} slots for each of the categories, one group after the other. Quests that were up keep their
+     * progress: they stay in their slot, or move to a free slot of their category when the layout changed.
+     * With no categories there is one group of slots that take any quest.
+     */
+    public void configure(List<Category> categories, int perCategory, long cooldownSeconds, boolean unique) {
         this.cooldownMillis = Math.max(0, cooldownSeconds) * 1000L;
         this.unique = unique;
-        while (slots.size() < slotCount) slots.add(new Slot(slots.size()));
-        while (slots.size() > slotCount) slots.remove(slots.size() - 1);
+
+        List<Slot> old = new ArrayList<>(slots);
+        slots.clear();
+        if (categories.isEmpty()) {
+            for (int i = 0; i < perCategory; i++) slots.add(new Slot(slots.size(), null));
+        } else {
+            for (Category category : categories) {
+                for (int i = 0; i < perCategory; i++) slots.add(new Slot(slots.size(), category));
+            }
+        }
+        adopt(old);
+    }
+
+    /** Puts the quests of these slots into this board's slots. Whatever finds no place is dropped. */
+    private void adopt(List<Slot> from) {
+        List<Slot> left = new ArrayList<>();
+        for (Slot slot : from) {
+            if (slot.quest == null) continue;
+            Slot same = slot(slot.index);
+            if (same != null && same.accepts(slot.quest)) {
+                move(slot, same);
+            } else {
+                left.add(slot);
+            }
+        }
+        for (Slot slot : left) {
+            for (Slot target : slots) {
+                if (target.quest == null && target.accepts(slot.quest)) {
+                    move(slot, target);
+                    break;
+                }
+            }
+        }
+    }
+
+    private static void move(Slot from, Slot to) {
+        to.quest = from.quest;
+        to.active = from.active;
+        to.startedAt = from.startedAt;
+        to.scores.clear();
+        to.scores.putAll(from.scores);
+        to.dirty = from.dirty || from.index != to.index;
     }
 
     public List<Slot> slots() {
         return slots;
+    }
+
+    /** The slots that take quests of this category, in order. */
+    public List<Slot> slotsOf(Category category) {
+        List<Slot> result = new ArrayList<>();
+        for (Slot slot : slots) {
+            if (slot.category == category) result.add(slot);
+        }
+        return result;
     }
 
     public @Nullable Slot slot(int index) {
@@ -160,18 +231,22 @@ public final class Board {
 
     /** Puts the saved slots back. Slots with a quest that no longer exists get a new one. */
     public void restore(List<Saved> saved) {
+        List<Slot> loaded = new ArrayList<>();
         for (Saved state : saved) {
-            Slot slot = slot(state.slot());
             Quest quest = library.get(state.questId());
-            if (slot == null || quest == null) continue;
+            if (quest == null) continue;
+            Slot slot = new Slot(state.slot(), null);
             slot.quest = quest;
             slot.active = state.active();
             slot.startedAt = state.startedAt();
-            slot.scores.clear();
             for (Score score : state.scores()) {
                 slot.scores.put(score.player(), new Entry(score.player(), score.name(), score.score()));
             }
+            loaded.add(slot);
         }
+        // A board saved before the categories had its quests in any slot: they move to the slot of their category.
+        for (Slot slot : slots) slot.quest = null;
+        adopt(loaded);
         fill();
     }
 
@@ -201,7 +276,7 @@ public final class Board {
         for (Slot slot : slots) {
             if (slot != except && slot.quest != null) onBoard.add(slot.quest);
         }
-        return library.pick(random, onBoard, unique);
+        return library.pick(random, onBoard, unique, except.category);
     }
 
     private void start(Slot slot, Quest quest) {

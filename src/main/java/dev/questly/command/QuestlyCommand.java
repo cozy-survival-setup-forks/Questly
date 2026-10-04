@@ -118,6 +118,12 @@ public final class QuestlyCommand implements TabExecutor {
             plugin.messages().send(sender, "unknown-quest");
             return;
         }
+        var target = plugin.service().board().slot(slot - 1);
+        if (target != null && target.category() != null && target.category() != quest.category()) {
+            plugin.messages().send(sender, "wrong-category", Map.of("%slot%", String.valueOf(slot),
+                    "%category%", target.category().title(), "%quest%", quest.titleText()));
+            return;
+        }
         plugin.service().board().set(slot - 1, quest);
         plugin.service().saveSlot(slot - 1);
         plugin.messages().send(sender, "quest-set", Map.of("%slot%", String.valueOf(slot), "%quest%", quest.titleText()));

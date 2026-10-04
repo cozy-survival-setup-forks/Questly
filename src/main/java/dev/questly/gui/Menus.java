@@ -2,8 +2,10 @@ package dev.questly.gui;
 
 import dev.questly.BoardService;
 import dev.questly.QuestlyPlugin;
+import dev.questly.Settings;
 import dev.questly.board.Board;
 import dev.questly.gui.ShopParser.Product;
+import dev.questly.quest.Category;
 import dev.questly.quest.Quest;
 import dev.questly.util.Duration;
 import dev.questly.util.Text;
@@ -44,6 +46,17 @@ public final class Menus implements Listener {
     private static final int LEADERBOARD_PLACES = 5;
 
     private static final class BoardHolder implements InventoryHolder {
+        Inventory inventory;
+        /** The category this board shows. */
+        Category category;
+
+        @Override
+        public @NotNull Inventory getInventory() {
+            return inventory;
+        }
+    }
+
+    private static final class CategoryHolder implements InventoryHolder {
         Inventory inventory;
 
         @Override
@@ -118,7 +131,8 @@ public final class Menus implements Listener {
         return stack;
     }
 
-    private static ItemStack filler(String material) {
+    private static @Nullable ItemStack filler(String material) {
+        if (material.equals("NONE") || material.equals("AIR")) return null;
         ItemStack stack = item(material, " ", List.of(), Map.of());
         return stack == null ? new ItemStack(Material.BLACK_STAINED_GLASS_PANE) : stack;
     }
@@ -161,44 +175,46 @@ public final class Menus implements Listener {
         return stack == null ? filler(plugin.settings().filler()) : stack;
     }
 
-    /** Rows of the board: {@code gui.rows} if set, otherwise enough for every quest with a filler row above and below. */
-    private int boardRows(int quests) {
-        int needed = Math.max(1, (quests + 8) / 9);
-        int rows = plugin.settings().guiRows();
-        if (rows <= 0) rows = Math.min(6, needed + 2);
-        return Math.max(needed, Math.min(6, rows));
-    }
-
-    /**
-     * The inventory slot of every quest, in order. {@code gui.quest-slots} if it has enough valid slots, otherwise the
-     * quests fill the rows in the middle of the board.
-     */
-    private List<Integer> questSlots(int quests, int size) {
-        List<Integer> configured = new ArrayList<>();
-        for (int slot : plugin.settings().guiQuestSlots()) {
-            if (slot >= 0 && slot < size && !configured.contains(slot)) configured.add(slot);
-        }
-        if (configured.size() >= quests) return configured.subList(0, quests);
-
-        int rows = size / 9;
-        int used = (quests + 8) / 9;
-        int first = ((rows - used) / 2) * 9;
-        List<Integer> slots = new ArrayList<>();
-        for (int i = 0; i < quests; i++) slots.add(first + i);
-        return slots;
-    }
-
+    /** The category menu, or a board of all quests when the board has no categories. */
     public void openBoard(Player player) {
-        int quests = service.board().slots().size();
-        BoardHolder holder = new BoardHolder();
-        holder.inventory = Bukkit.createInventory(holder, boardRows(quests) * 9, Text.component(plugin.settings().guiTitle()));
-        fillBoard(holder.inventory, player);
+        CategoryHolder holder = new CategoryHolder();
+        holder.inventory = Bukkit.createInventory(holder, plugin.settings().categoriesRows() * 9,
+                Text.component(plugin.settings().categoriesTitle()));
+        fillCategories(holder.inventory);
         player.openInventory(holder.inventory);
     }
 
-    private void fillBoard(Inventory inventory, Player viewer) {
-        List<Board.Slot> quests = service.board().slots();
-        List<Integer> where = questSlots(quests.size(), inventory.getSize());
+    /** The quests of one category. */
+    public void openBoard(Player player, Category category) {
+        BoardHolder holder = new BoardHolder();
+        holder.category = category;
+        String title = plugin.settings().guiTitle();
+        String name = PlainTextComponentSerializer.plainText().serialize(Text.component(plugin.settings().categoryButton(category).display().name()));
+        title = title.contains("%category%") ? title.replace("%category%", name) : title + " - " + name;
+        holder.inventory = Bukkit.createInventory(holder, plugin.settings().menuRows() * 9, Text.component(title));
+        fillBoard(holder.inventory, player, category);
+        player.openInventory(holder.inventory);
+    }
+
+    private void fillCategories(Inventory inventory) {
+        ItemStack fill = filler(plugin.settings().categoriesFiller());
+        for (int i = 0; i < inventory.getSize(); i++) inventory.setItem(i, fill);
+        for (Category category : Category.values()) {
+            Settings.CategoryButton button = plugin.settings().categoryButton(category);
+            if (button.slot() < 0 || button.slot() >= inventory.getSize()) continue;
+
+            List<Board.Slot> slots = service.board().slotsOf(category);
+            long active = slots.stream().filter(slot -> slot.quest() != null && slot.active()).count();
+            ItemStack stack = item(button.display().material(), button.display().name(), button.display().lore(), Map.of(
+                    "%active%", String.valueOf(active), "%total%", String.valueOf(slots.size()),
+                    "%category%", category.title()));
+            if (stack != null) inventory.setItem(button.slot(), stack);
+        }
+    }
+
+    private void fillBoard(Inventory inventory, Player viewer, Category category) {
+        List<Board.Slot> quests = service.board().slotsOf(category);
+        List<Integer> where = plugin.settings().questSlots();
         ItemStack fill = filler(plugin.settings().filler());
         for (int i = 0; i < inventory.getSize(); i++) inventory.setItem(i, fill);
         for (int i = 0; i < quests.size() && i < where.size(); i++) {
@@ -208,15 +224,24 @@ public final class Menus implements Listener {
             // repeatedly until the viewer closes it.
             if (slot < inventory.getSize()) inventory.setItem(slot, questItem(quests.get(i), viewer));
         }
+        int back = plugin.settings().backSlot();
+        if (back < inventory.getSize() && !where.contains(back)) {
+            Quest.Display display = plugin.settings().backItem();
+            ItemStack stack = item(display.material(), display.name(), display.lore(), Map.of());
+            if (stack != null) inventory.setItem(back, stack);
+        }
     }
 
     /** Keeps the timers and scores of open boards current. Called once a second. */
     public void refresh() {
         for (Player player : Bukkit.getOnlinePlayers()) {
             Inventory top = player.getOpenInventory().getTopInventory();
-            if (top.getHolder(false) instanceof BoardHolder) {
-                fillBoard(top, player);
-            } else if (top.getHolder(false) instanceof ShopHolder) {
+            InventoryHolder holder = top.getHolder(false);
+            if (holder instanceof BoardHolder board) {
+                fillBoard(top, player, board.category);
+            } else if (holder instanceof CategoryHolder) {
+                fillCategories(top);
+            } else if (holder instanceof ShopHolder) {
                 fillShop(top, player);
             }
         }
@@ -307,7 +332,7 @@ public final class Menus implements Listener {
     @EventHandler
     public void onClick(InventoryClickEvent event) {
         InventoryHolder holder = event.getView().getTopInventory().getHolder(false);
-        if (!(holder instanceof BoardHolder) && !(holder instanceof ShopHolder)) return;
+        if (!(holder instanceof BoardHolder) && !(holder instanceof ShopHolder) && !(holder instanceof CategoryHolder)) return;
 
         event.setCancelled(true);
         // Only a genuine single purchase click - a double-click, a shift-click, a number-key swap
@@ -315,6 +340,10 @@ public final class Menus implements Listener {
         // buy the product again for every one of them.
         ClickType click = event.getClick();
         boolean singlePurchaseClick = click == ClickType.LEFT || click == ClickType.RIGHT;
+        if (singlePurchaseClick && event.getWhoClicked() instanceof Player viewer
+                && event.getClickedInventory() == event.getView().getTopInventory()) {
+            navigate(viewer, holder, event.getSlot());
+        }
         if (holder instanceof ShopHolder && singlePurchaseClick && event.getWhoClicked() instanceof Player player
                 && event.getClickedInventory() == event.getView().getTopInventory()) {
             Product product = products.get(event.getSlot());
@@ -322,9 +351,29 @@ public final class Menus implements Listener {
         }
     }
 
+    /** A category button opens its board, the back button of a board opens the categories again. */
+    private void navigate(Player player, InventoryHolder holder, int slot) {
+        if (holder instanceof CategoryHolder) {
+            for (Category category : Category.values()) {
+                if (plugin.settings().categoryButton(category).slot() == slot) {
+                    // Deferred a tick: another inventory cannot be opened from inside the click.
+                    Bukkit.getScheduler().runTask(plugin, () -> {
+                        if (player.isOnline()) openBoard(player, category);
+                    });
+                    return;
+                }
+            }
+        } else if (holder instanceof BoardHolder && slot == plugin.settings().backSlot()
+                && !plugin.settings().questSlots().contains(slot)) {
+            Bukkit.getScheduler().runTask(plugin, () -> {
+                if (player.isOnline()) openBoard(player);
+            });
+        }
+    }
+
     @EventHandler
     public void onDrag(InventoryDragEvent event) {
         InventoryHolder holder = event.getView().getTopInventory().getHolder(false);
-        if (holder instanceof BoardHolder || holder instanceof ShopHolder) event.setCancelled(true);
+        if (holder instanceof BoardHolder || holder instanceof ShopHolder || holder instanceof CategoryHolder) event.setCancelled(true);
     }
 }

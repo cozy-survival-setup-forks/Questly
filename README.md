@@ -9,7 +9,7 @@ while, then a new quest takes the place of the one that was won.
 | File | What it holds |
 | --- | --- |
 | `quests.yml` | All the quests (300 come with the plugin) |
-| `config.yml` | Size of the board, timing, chat rules, menu look |
+| `config.yml` | Menus, quest slots, timing, chat rules |
 | `lang.yml` | Every message |
 | `shop.yml` | What quest points can buy |
 
@@ -102,11 +102,42 @@ An item with `price: 0` (or no price) is a button or a decoration: it is shown w
 a click runs its commands and takes no points, and it only says "bought" when it has a `give`. A price below 0 is
 skipped with a warning.
 
+## Categories and menus
+
+`/quests` opens a menu with seven categories: Combat, Mining, Farming, Animal, Fishing, Exploration and
+Miscellaneous Quests. A category opens its own board, with a button to go back. Every category has its own set of
+quests up at the same time, one for each slot of `menu.quest-slots` in `config.yml`.
+
+A quest goes in a category by what it asks for: killing mobs is Combat (passive animals count as Animals), breaking
+ores and stone is Mining, breaking crops and logs is Farming, breeding and taming is Animals, fishing is Fishing,
+walking, sprinting, swimming, flying and riding is Exploration, and chat or enchanting is Miscellaneous. To choose
+yourself, add a `category:` line to the quest (`combat`, `mining`, `farming`, `animals`, `fishing`, `exploration`
+or `misc`).
+
+```yaml
+menu:
+  title: "&#FF9558%category%"   # the title of a board
+  rows: 3
+  quest-slots: "9-17"           # a list such as [11, 13, 15], or ranges
+  filler: BLACK_STAINED_GLASS_PANE
+categories:                     # the category menu: slot, material, name and lore of each button
+  combat:
+    slot: 10
+    material: DIAMOND_SWORD
+    name: "&#FF6E6ECombat Quests"
+```
+
+Older `config.yml` files with `board.slots` and `gui:` keep working. After an update, the quests that were up move
+to the board of their category and keep their progress.
+
+The places of the board are numbered category by category: with 9 quests per category, 1 to 9 are Combat, 10 to 18
+Mining, and so on. `/questly admin setquest` only takes a quest of the category of that place.
+
 ## Commands
 
 | Command | Use |
 | --- | --- |
-| `/questly` | Open the board |
+| `/questly` | Open the quest categories |
 | `/questly shop` | Open the shop |
 | `/questly points [player]` | See quest points |
 | `/questly admin points give\|take\|set <player> <amount>` | Change points |

@@ -23,6 +23,7 @@ reward-waiting: "&fYou got %amount% reward(s) from quests you won while away."
 reset: "&fThe board has new quests."
 reloaded: "&fReloaded. There are %amount% quests."
 quest-set: "&fSlot %slot% now has the quest &#A8E6A3%quest%&f."
+wrong-category: "&cSlot %slot% is for %category%, and &#A8E6A3%quest% &cis in another category."
 
 usage:
   - "&#FF9558&lQuestly"

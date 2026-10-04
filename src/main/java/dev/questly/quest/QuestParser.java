@@ -91,9 +91,21 @@ public final class QuestParser {
             log.warning("quests.yml: quest " + id + " has a chance of " + chance + " and will never appear.");
         }
 
+        Category category = Category.infer(trigger, extra);
+        String named = entry.isString("category") ? entry.getString("category") : settings.getString("category");
+        if (named != null && !named.isBlank()) {
+            Category parsed = Category.parse(named);
+            if (parsed == null) {
+                log.warning("quests.yml: quest " + id + " has the category '" + named + "', which is not one of "
+                        + java.util.Arrays.stream(Category.values()).map(Category::key).toList() + ". Using " + category.key() + ".");
+            } else {
+                category = parsed;
+            }
+        }
+
         return new Quest(id, title, Math.max(0, chance), trigger, extra, required,
                 settings.getBoolean("prevent-cheating", true), Math.max(0, settings.getInt("win-points", 0)),
-                new Quest.Display(material, name, lore), parseRewards(settings.getConfigurationSection("rewards")));
+                new Quest.Display(material, name, lore), parseRewards(settings.getConfigurationSection("rewards")), category);
     }
 
     private static boolean validTarget(Trigger trigger, String extra, Names names) {

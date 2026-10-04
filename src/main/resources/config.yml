@@ -4,8 +4,6 @@
 # Reload them all with /questly admin reload.
 
 board:
-  # How many quests are on the board at once (1 to 54).
-  slots: 9
   # After somebody wins a quest, seconds until a new quest takes its place.
   cooldown-seconds: 1800
   # Avoid the same quest, or two quests that ask for the same thing, on the board at once.
@@ -21,15 +19,26 @@ chat:
   min-length: 3
   cooldown-seconds: 3
 
-gui:
-  title: "&#FF9558Quest Board"
-  # Fills every slot of the board that has no quest.
+# The quest menus. /quests opens the category menu below, a category opens its own board.
+menu:
+  # The title of a board. %category% is the name of the category.
+  title: "&#FF9558%category%"
+  # Rows of a board (1-6).
+  rows: 3
+  # Where the quests of a category go, as inventory slots (0 is the top left): a list such as [11, 13, 15],
+  # or ranges such as "9-17". One quest is up in every slot, so this is also how many quests each category has.
+  quest-slots: "9-17"
+  # Fills every slot that has nothing in it. NONE leaves them empty.
   filler: BLACK_STAINED_GLASS_PANE
-  # Rows of the board (1-6). 0 fits the quests and adds a row of filler above and below.
-  rows: 0
-  # Where the quests go, as inventory slots (0 is the top left). Leave empty to fill the rows in the middle.
-  # Needs a slot for every quest, otherwise the middle rows are used.
-  quest-slots: []
+  # The button that goes back to the categories. -1 puts it in the middle of the bottom row.
+  back-slot: -1
+  back-item:
+    material: ARROW
+    name: "&#FF9558Back"
+    lore:
+      - "&#B6C1C8Quests"
+      - ""
+      - "&fBack to the categories."
   # Shown in the place of a quest that was won, until the next one starts.
   cooldown-item:
     material: CLOCK
@@ -38,6 +47,42 @@ gui:
       - "&#B6C1C8Quests"
       - ""
       - "&fThis quest was won by &#FFE75C%winner%&f."
+
+# The category menu. A quest is put in a category by what it asks for, or by a category: line in quests.yml
+# (combat, mining, farming, animals, fishing, exploration or misc). Every button can also set a lore:
+# list, with the placeholders %active% and %total%.
+categories:
+  title: "&#FF9558Quests"
+  rows: 3
+  filler: BLACK_STAINED_GLASS_PANE
+  combat:
+    slot: 10
+    material: DIAMOND_SWORD
+    name: "&#FF6E6ECombat Quests"
+  mining:
+    slot: 11
+    material: DIAMOND_PICKAXE
+    name: "&#68C8FFMining Quests"
+  farming:
+    slot: 12
+    material: WHEAT
+    name: "&#A8E6A3Farming Quests"
+  animals:
+    slot: 13
+    material: BONE
+    name: "&#FFE29AAnimal Quests"
+  fishing:
+    slot: 14
+    material: FISHING_ROD
+    name: "&#74C7FFFishing Quests"
+  exploration:
+    slot: 15
+    material: COMPASS
+    name: "&#AAA5FFExploration Quests"
+  misc:
+    slot: 16
+    material: NETHER_STAR
+    name: "&#FF8BB0Miscellaneous Quests"
 
 # Messages sent to everybody. Turn one off with false, or set the text in lang.yml.
 broadcasts:
@@ -51,4 +96,3 @@ broadcasts:
 metrics:
   enabled: true
   interval-minutes: 45
-  endpoint: "http://localhost:4100/api/metrics/ingest"

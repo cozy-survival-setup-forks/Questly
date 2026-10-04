@@ -12,7 +12,14 @@ import java.util.Set;
  * @param extra the entity, block or item the quest is about, or null for any
  */
 public record Quest(String id, String title, double chance, Trigger trigger, @Nullable String extra, long required,
-                    boolean preventCheating, int winPoints, Display display, List<Reward> rewards) {
+                    boolean preventCheating, int winPoints, Display display, List<Reward> rewards, Category category) {
+
+    /** A quest in the category its trigger and target suggest. */
+    public Quest(String id, String title, double chance, Trigger trigger, @Nullable String extra, long required,
+                 boolean preventCheating, int winPoints, Display display, List<Reward> rewards) {
+        this(id, title, chance, trigger, extra, required, preventCheating, winPoints, display, rewards,
+                Category.infer(trigger, extra));
+    }
 
     /** The item the quest shows on the board. */
     public record Display(String material, String name, List<String> lore) {
