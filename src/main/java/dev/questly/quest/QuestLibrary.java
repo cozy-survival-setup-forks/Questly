@@ -52,6 +52,8 @@ public final class QuestLibrary {
                     .filter(candidate -> onBoard.stream().noneMatch(taken -> taken.id().equals(candidate.id())))
                     .toList());
             if (quest != null) return quest;
+            // A category with fewer quests than slots leaves the slots empty instead of showing a quest twice.
+            if (category != null) return null;
         }
         return weighted(random, pool);
     }

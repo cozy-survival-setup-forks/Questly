@@ -55,6 +55,8 @@ public final class Board {
         private long startedAt;
         private final Map<UUID, Entry> scores = new LinkedHashMap<>();
         private boolean dirty;
+        /** When an empty slot may look for a quest again. */
+        private long retryAt;
 
         Slot(int index, @Nullable Category category) {
             this.index = index;
@@ -131,6 +133,8 @@ public final class Board {
     public record Score(UUID player, String name, double score) {
     }
 
+    private static final long RETRY_MILLIS = 30_000L;
+
     private QuestLibrary library;
     private final Random random;
     private final LongSupplier clock;
@@ -147,6 +151,7 @@ public final class Board {
     /** Switches to reloaded quests. Slots keep their progress when their quest still exists, otherwise they get a new one. */
     public void setLibrary(QuestLibrary library) {
         this.library = library;
+        for (Slot slot : slots) slot.retryAt = 0;
         for (Slot slot : slots) {
             if (slot.quest != null) {
                 slot.quest = library.get(slot.quest.id());
@@ -370,11 +375,15 @@ public final class Board {
         long now = clock.getAsLong();
         List<Rotation> rotations = new ArrayList<>();
         for (Slot slot : slots) {
+            if (slot.quest == null && now < slot.retryAt) continue;
             if (slot.quest == null || (!slot.active && now - slot.startedAt >= cooldownMillis)) {
                 Quest quest = pickFor(slot);
                 if (quest != null) {
                     start(slot, quest);
                     rotations.add(new Rotation(slot.index, quest));
+                } else if (slot.quest == null) {
+                    // Nothing fits this category right now: look again later, not every second.
+                    slot.retryAt = now + RETRY_MILLIS;
                 }
             }
         }

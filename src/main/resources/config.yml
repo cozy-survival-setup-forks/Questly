@@ -24,14 +24,14 @@ menu:
   # The title of a board. %category% is the name of the category.
   title: "&#FF9558%category%"
   # Rows of a board (1-6).
-  rows: 3
+  rows: 6
   # Where the quests of a category go, as inventory slots (0 is the top left): a list such as [11, 13, 15],
   # or ranges such as "9-17". One quest is up in every slot, so this is also how many quests each category has.
-  quest-slots: "9-17"
+  quest-slots: "10-16, 19-25, 28-34, 37-43"
   # Fills every slot that has nothing in it. NONE leaves them empty.
-  filler: BLACK_STAINED_GLASS_PANE
+  filler: NONE
   # The button that goes back to the categories. -1 puts it in the middle of the bottom row.
-  back-slot: -1
+  back-slot: 45
   back-item:
     material: ARROW
     name: "&#FF9558Back"
@@ -42,8 +42,21 @@ menu:
   # Extra items for the board. Each has a slot (a number, a list or ranges such as "0-8"), a material and a name,
   # and can have lore and commands. Commands run when the item is clicked, and can start with [player],
   # [console] (the default), [message] or [close]. %player% is the player who clicked.
-  decorations: []
-  # decorations:
+  decorations:
+    - slot: 49
+      material: EMERALD
+      name: "&l&#3DF08AQUEST SHOP"
+      lore:
+        - "&#B6C1C8QUEST SHOP"
+        - ""
+        - "&#FFB347Information"
+        - "&fSpend your &#FFE75Cearned points"
+        - "&ffor &#68E58Dmoney&f, &#FF6E6Eorbs &fand more!"
+        - ""
+        - "&#FF9558\u25B6 &l&nCLICK&r&#FF9558 to Browse"
+      commands:
+        - "[player] questshop"
+  # More examples:
   #   - slots: "0-8"
   #     material: PURPLE_STAINED_GLASS_PANE
   #     name: " "
@@ -65,36 +78,49 @@ menu:
 # list, with the placeholders %active% and %total%.
 categories:
   title: "&#FF9558Quests"
-  rows: 3
-  filler: BLACK_STAINED_GLASS_PANE
+  rows: 6
+  filler: NONE
   # Extra items, written like menu.decorations above. The category buttons are drawn on top of them.
-  decorations: []
+  decorations:
+    - slot: 49
+      material: EMERALD
+      name: "&l&#3DF08AQUEST SHOP"
+      lore:
+        - "&#B6C1C8QUEST SHOP"
+        - ""
+        - "&#FFB347Information"
+        - "&fSpend your &#FFE75Cearned points"
+        - "&ffor &#68E58Dmoney&f, &#FF6E6Eorbs &fand more!"
+        - ""
+        - "&#FF9558\u25B6 &l&nCLICK&r&#FF9558 to Browse"
+      commands:
+        - "[player] questshop"
   combat:
-    slot: 10
+    slot: 19
     material: DIAMOND_SWORD
     name: "&#FF6E6ECombat Quests"
   mining:
-    slot: 11
+    slot: 20
     material: DIAMOND_PICKAXE
     name: "&#68C8FFMining Quests"
   farming:
-    slot: 12
+    slot: 21
     material: WHEAT
     name: "&#A8E6A3Farming Quests"
   animals:
-    slot: 13
+    slot: 22
     material: BONE
     name: "&#FFE29AAnimal Quests"
   fishing:
-    slot: 14
+    slot: 23
     material: FISHING_ROD
     name: "&#74C7FFFishing Quests"
   exploration:
-    slot: 15
+    slot: 24
     material: COMPASS
     name: "&#AAA5FFExploration Quests"
   misc:
-    slot: 16
+    slot: 25
     material: NETHER_STAR
     name: "&#FF8BB0Miscellaneous Quests"
 

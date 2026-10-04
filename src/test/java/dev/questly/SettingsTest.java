@@ -22,15 +22,20 @@ class SettingsTest {
 
     @Test
     void theBundledConfigIsReadAsIntended() {
-        Settings settings = new Settings(bundled(), LOG);
+        Settings settings = new Settings(bundled(), LOG, name -> true);
 
-        assertEquals(3, settings.menuRows());
-        assertEquals(List.of(9, 10, 11, 12, 13, 14, 15, 16, 17), settings.questSlots());
-        assertEquals(9, settings.slots());
-        assertTrue(settings.categoryDecorations().isEmpty());
-        assertTrue(settings.boardDecorations().isEmpty());
-        assertEquals(3, settings.categoriesRows());
-        assertEquals(22, settings.backSlot());
+        assertEquals(6, settings.menuRows());
+        assertEquals(28, settings.slots());
+        assertEquals(List.of(10, 11, 12, 13, 14, 15, 16), settings.questSlots().subList(0, 7));
+        assertEquals(List.of(37, 38, 39, 40, 41, 42, 43), settings.questSlots().subList(21, 28));
+        assertEquals("NONE", settings.filler());
+        assertEquals(6, settings.categoriesRows());
+        assertEquals(45, settings.backSlot());
+        assertEquals(1, settings.categoryDecorations().size());
+        assertEquals(List.of(49), settings.categoryDecorations().get(0).slots());
+        assertEquals(List.of("[player] questshop"), settings.boardDecorations().get(0).commands());
+        assertEquals(19, settings.categoryButton(dev.questly.quest.Category.COMBAT).slot());
+        assertEquals(25, settings.categoryButton(dev.questly.quest.Category.MISC).slot());
     }
 
     @Test

@@ -13,6 +13,9 @@ commands:
     description: Open the quest board
     usage: /<command> [shop | points | admin]
     aliases: [quests]
+  questshop:
+    description: Open the quest shop
+    usage: /<command>
 
 permissions:
   questly.use:

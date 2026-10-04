@@ -28,5 +28,5 @@ wrong-category: "&cSlot %slot% is for %category%, and &#A8E6A3%quest% &cis in an
 usage:
   - "&#FF9558&lQuestly"
   - "&f/questly &7- open the board"
-  - "&f/questly shop &7- spend quest points"
+  - "&f/questshop &7- spend quest points"
   - "&f/questly points [player] &7- see quest points"

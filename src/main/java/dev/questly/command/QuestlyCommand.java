@@ -42,6 +42,11 @@ public final class QuestlyCommand implements TabExecutor {
         return true;
     }
 
+    /** /questshop. */
+    public void openShop(CommandSender sender) {
+        open(sender, true);
+    }
+
     private void open(CommandSender sender, boolean shop) {
         if (!(sender instanceof Player player)) {
             plugin.messages().send(sender, "players-only");

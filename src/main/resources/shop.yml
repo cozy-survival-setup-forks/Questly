@@ -1,4 +1,4 @@
-# What players can buy with quest points, in /questly shop.
+# What players can buy with quest points, in /questshop.
 # Same layout as our other menus (menu_title, size, items with material/slot/display_name/lore/
 # left_click_commands), so the menu style converter can restyle it too.
 #

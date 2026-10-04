@@ -24,6 +24,11 @@ public final class Settings {
     private final List<Decorations.Decoration> boardDecorations;
 
     Settings(FileConfiguration config, Logger log) {
+        this(config, log, Settings::isItem);
+    }
+
+    /** {@code isItem} tells whether a material name is a real item, so tests need no server. */
+    Settings(FileConfiguration config, Logger log, java.util.function.Predicate<String> isItem) {
         this.config = config;
         legacy = !config.contains("menu", true);
         if (!legacy) {
@@ -44,9 +49,9 @@ public final class Settings {
                     + "(rows, quest-slots, filler) is shown in the default config.yml.");
         }
         categoryDecorations = Decorations.parse(config.getMapList("categories.decorations"), categoriesRows() * 9,
-                "categories.decorations", log, Settings::isItem);
+                "categories.decorations", log, isItem);
         boardDecorations = Decorations.parse(config.getMapList(menu("decorations")), menuRows * 9,
-                menu("decorations"), log, Settings::isItem);
+                menu("decorations"), log, isItem);
     }
 
     /** The extra items of the category menu. */

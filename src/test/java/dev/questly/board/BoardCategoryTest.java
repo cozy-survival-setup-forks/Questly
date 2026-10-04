@@ -73,4 +73,20 @@ class BoardCategoryTest {
         assertEquals(3, board.slotsOf(Category.MINING).stream().mapToDouble(s -> s.scoreOf(ALEX)).max().orElse(0));
         assertNotNull(board.slotsOf(Category.COMBAT).get(0).quest());
     }
+
+    @Test
+    void aCategoryWithFewQuestsLeavesTheOtherSlotsEmpty() {
+        Board board = new Board(new QuestLibrary(List.of(quest("zombie", Trigger.KILL, "ZOMBIE"), quest("spider", Trigger.KILL, "SPIDER"))),
+                new Random(1), () -> 1_000_000L);
+        board.configure(List.of(Category.COMBAT, Category.FISHING), 4, 60, true);
+        board.fill();
+
+        List<Board.Slot> combat = board.slotsOf(Category.COMBAT);
+        assertNotNull(combat.get(0).quest());
+        assertNotNull(combat.get(1).quest());
+        assertEquals(false, combat.get(0).quest().id().equals(combat.get(1).quest().id()));
+        assertNull(combat.get(2).quest());
+        assertNull(combat.get(3).quest());
+        assertEquals(0, board.tick().size(), "empty slots stay empty and are not retried every second");
+    }
 }

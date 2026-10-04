@@ -113,6 +113,13 @@ public final class QuestlyPlugin extends JavaPlugin implements Listener {
             QuestlyCommand handler = new QuestlyCommand(this);
             command.setExecutor(handler);
             command.setTabCompleter(handler);
+            var shop = getCommand("questshop");
+            if (shop != null) {
+                shop.setExecutor((sender, cmd, label, args) -> {
+                    handler.openShop(sender);
+                    return true;
+                });
+            }
         }
         if (manager.isPluginEnabled("PlaceholderAPI")) {
             new QuestlyExpansion(this).register();

@@ -79,7 +79,7 @@ menu_title: "&#FF9558Quest Shop"
 size: 27
 items:
   diamonds:
-    slot: 10
+    slot: 19
     price: 10
     material: DIAMOND
     display_name: "&#9ED8FF5 Diamonds"
@@ -117,15 +117,18 @@ or `misc`).
 ```yaml
 menu:
   title: "&#FF9558%category%"   # the title of a board
-  rows: 3
-  quest-slots: "9-17"           # a list such as [11, 13, 15], or ranges
-  filler: BLACK_STAINED_GLASS_PANE
+  rows: 6
+  quest-slots: "10-16, 19-25, 28-34, 37-43"   # a list such as [11, 13, 15], or ranges
+  filler: NONE                  # or an item such as BLACK_STAINED_GLASS_PANE
 categories:                     # the category menu: slot, material, name and lore of each button
   combat:
-    slot: 10
+    slot: 19
     material: DIAMOND_SWORD
     name: "&#FF6E6ECombat Quests"
 ```
+
+The default menus have 6 rows: the quests of a category fill 4 rows of 7, the empty slots stay empty and a Quest Shop
+item sits at the bottom of every menu. It runs `/questshop`, which opens the shop.
 
 Both menus can show extra items. Add them to `categories.decorations` (the category menu) or `menu.decorations`
 (every board). Each one has `slot` or `slots` (a number, a list, or ranges like `"0-8"`), `material`, `name`, and
@@ -155,7 +158,7 @@ Mining, and so on. `/questly admin setquest` only takes a quest of the category 
 | Command | Use |
 | --- | --- |
 | `/questly` | Open the quest categories |
-| `/questly shop` | Open the shop |
+| `/questly shop` or `/questshop` | Open the shop |
 | `/questly points [player]` | See quest points |
 | `/questly admin points give\|take\|set <player> <amount>` | Change points |
 | `/questly admin setquest <slot> <quest id>` | Put a quest on the board |
