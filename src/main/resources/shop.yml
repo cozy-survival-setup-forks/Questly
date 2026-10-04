@@ -6,6 +6,8 @@
 # [message] sends the buyer a line, [close] closes the shop. %player% is the buyer's name.
 # "give" hands the buyer an item directly instead of (or as well as) running a command, for
 # rewards that need no permission plugin or economy command.
+# price: 0 (or no price) makes an item a button or decoration: a click runs its commands, takes no
+# points and sends no "bought" message unless it has a "give".
 
 menu_title: "&#FF9558Quest Shop"
 size: 27

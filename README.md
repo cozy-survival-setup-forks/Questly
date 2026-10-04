@@ -94,8 +94,13 @@ items:
 
 `give` hands over an item directly (useful for things no command can give cleanly, like a plain stack of
 diamonds). `left_click_commands` run as the console by default; tag a line `[player]` to run it as the buyer,
-`[message]` to send them a line, or `[close]` to close the shop. A shop.yml from before this layout (`title`,
+`[message]` to send them a line, or `[close]` to close the shop. The commands run a tick after the click, so one
+that opens another menu (such as `dm open quests %player%`) works. A shop.yml from before this layout (`title`,
 `rows`, `name`, `commands`) still loads.
+
+An item with `price: 0` (or no price) is a button or a decoration: it is shown with its lore exactly as written,
+a click runs its commands and takes no points, and it only says "bought" when it has a `give`. A price below 0 is
+skipped with a warning.
 
 ## Commands
 

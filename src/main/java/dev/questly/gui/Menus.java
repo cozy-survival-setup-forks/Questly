@@ -3,6 +3,7 @@ package dev.questly.gui;
 import dev.questly.BoardService;
 import dev.questly.QuestlyPlugin;
 import dev.questly.board.Board;
+import dev.questly.gui.ShopParser.Product;
 import dev.questly.quest.Quest;
 import dev.questly.util.Duration;
 import dev.questly.util.Text;
@@ -11,6 +12,7 @@ import org.bukkit.Bukkit;
 import org.bukkit.Material;
 import org.bukkit.Sound;
 import org.bukkit.configuration.ConfigurationSection;
+import org.bukkit.configuration.InvalidConfigurationException;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.Player;
@@ -27,12 +29,14 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.io.File;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.logging.Level;
 
 /** The quest board and the points shop. Nothing can be taken out of them, a click only asks for a purchase. */
 public final class Menus implements Listener {
@@ -57,11 +61,6 @@ public final class Menus implements Listener {
         }
     }
 
-    /** One thing that can be bought. */
-    private record Product(String id, int slot, int price, String material, String name, List<String> lore,
-                           List<String> commands, List<ConfigurationSection> give) {
-    }
-
     private final QuestlyPlugin plugin;
     private final BoardService service;
     private FileConfiguration shop = new YamlConfiguration();
@@ -75,54 +74,20 @@ public final class Menus implements Listener {
     public void loadShop() {
         File file = new File(plugin.getDataFolder(), "shop.yml");
         if (!file.exists()) plugin.saveResource("shop.yml", false);
-        shop = YamlConfiguration.loadConfiguration(file);
+        YamlConfiguration loaded = new YamlConfiguration();
+        try {
+            loaded.load(file);
+        } catch (IOException | InvalidConfigurationException e) {
+            plugin.getLogger().log(Level.SEVERE, "shop.yml is broken, keeping the shop as it was", e);
+            return;
+        }
+        shop = loaded;
 
         products.clear();
-        ConfigurationSection items = shop.getConfigurationSection("items");
-        if (items == null) return;
-        int size = shopSize();
-        for (String id : items.getKeys(false)) {
-            ConfigurationSection entry = items.getConfigurationSection(id);
-            if (entry == null) continue;
-
-            int slot = entry.getInt("slot", -1);
-            int price = entry.getInt("price", 0);
-            String material = entry.getString("material", "PAPER").toUpperCase(Locale.ROOT);
-            List<String> commands = entry.contains("left_click_commands")
-                    ? entry.getStringList("left_click_commands") : entry.getStringList("commands");
-            List<ConfigurationSection> give = new ArrayList<>();
-            boolean giveOk = true;
-            for (Map<?, ?> map : entry.getMapList("give")) {
-                YamlConfiguration line = new YamlConfiguration();
-                map.forEach((key, value) -> line.set(String.valueOf(key), value));
-                String giveMaterial = line.getString("material", "STONE").toUpperCase(Locale.ROOT);
-                Material giveType = Material.matchMaterial(giveMaterial);
-                if (giveType == null || !giveType.isItem()) {
-                    plugin.getLogger().warning("shop.yml: " + id + " has a give line with '" + giveMaterial
-                            + "', which is not an item. Skipping it.");
-                    giveOk = false;
-                    continue;
-                }
-                give.add(line);
-            }
-
-            Material displayType = Material.matchMaterial(material);
-            if (slot < 0 || slot >= size) {
-                plugin.getLogger().warning("shop.yml: " + id + " has the slot " + slot + ", which is not inside the shop. Skipping it.");
-            } else if (price < 1) {
-                plugin.getLogger().warning("shop.yml: " + id + " needs a price of at least 1. Skipping it.");
-            } else if (displayType == null || !displayType.isItem()) {
-                plugin.getLogger().warning("shop.yml: " + id + " shows '" + material + "', which is not an item. Skipping it.");
-            } else if (!giveOk) {
-                plugin.getLogger().warning("shop.yml: " + id + " has a broken give line - fix it before this product is sold, "
-                        + "or a player would pay and get only the working parts. Skipping it.");
-            } else if (commands.isEmpty() && give.isEmpty()) {
-                plugin.getLogger().warning("shop.yml: " + id + " gives nothing, add left_click_commands or give. Skipping it.");
-            } else {
-                String name = entry.contains("display_name") ? entry.getString("display_name", id) : entry.getString("name", id);
-                products.put(slot, new Product(id, slot, price, material, name, entry.getStringList("lore"), commands, give));
-            }
-        }
+        products.putAll(ShopParser.parse(shop.getConfigurationSection("items"), shopSize(), plugin.getLogger(), name -> {
+            Material type = Material.matchMaterial(name);
+            return type != null && type.isItem();
+        }));
     }
 
     /** {@code size} (a DeluxeMenus-style inventory row count) if set, otherwise the older {@code rows}. */
@@ -284,7 +249,7 @@ public final class Menus implements Listener {
     }
 
     private void buy(Player player, Product product) {
-        if (!service.points().spend(player.getUniqueId(), player.getName(), product.price())) {
+        if (!product.free() && !service.points().spend(player.getUniqueId(), player.getName(), product.price())) {
             plugin.messages().send(player, "not-enough-points", Map.of(
                     "%price%", String.valueOf(product.price()),
                     "%points%", String.valueOf(service.points().get(player.getUniqueId()))));
@@ -292,8 +257,11 @@ public final class Menus implements Listener {
             return;
         }
 
-        for (String command : product.commands()) {
-            runCommand(player, command);
+        // Deferred a tick: Bukkit doesn't allow closing (or opening another) inventory from inside an
+        // InventoryClickEvent, and a console command such as "dm open <menu> %player%" does exactly that.
+        List<String> commands = product.commands();
+        if (!commands.isEmpty()) {
+            Bukkit.getScheduler().runTask(plugin, () -> commands.forEach(command -> runCommand(player, command)));
         }
         for (ConfigurationSection line : product.give()) {
             ItemStack stack = item(line.getString("material", "STONE").toUpperCase(Locale.ROOT),
@@ -308,29 +276,28 @@ public final class Menus implements Listener {
             player.getInventory().addItem(stack).values()
                     .forEach(left -> player.getWorld().dropItemNaturally(player.getLocation(), left));
         }
+        // A free button or decoration (price 0) says nothing unless it handed over an item.
+        if (product.free() && product.give().isEmpty()) return;
 
         plugin.messages().send(player, "shop-bought", Map.of("%item%",
                 PlainTextComponentSerializer.plainText().serialize(Text.component(product.name()))));
         player.playSound(player.getLocation(), Sound.ENTITY_EXPERIENCE_ORB_PICKUP, 1f, 1.1f);
-        // A [close] or [player] command above may have closed the shop or opened a different menu -
-        // only refill if the player is still looking at this shop, or filler items (or another
-        // product's display item) would be written into whatever inventory they have open now.
+        // The commands run next tick, so the player is still looking at this shop: show the new points.
         Inventory top = player.getOpenInventory().getTopInventory();
         if (top.getHolder(false) instanceof ShopHolder) fillShop(top, player);
     }
 
-    /** A shop reward line. Same tags as our menus: {@code [console]} (the default), {@code [player]}, {@code [message]}
-     * and {@code [close]}. */
+    /** A shop reward line, run a tick after the click. Same tags as our menus: {@code [console]} (the default),
+     * {@code [player]}, {@code [message]} and {@code [close]}. */
     private void runCommand(Player player, String line) {
         Text.Tagged tagged = Text.tag(line);
         String filled = tagged.rest().replace("%player%", player.getName());
+        // A console reward is still owed to a player who left in that tick, the rest needs them online.
+        if (List.of("player", "message", "close").contains(tagged.tag()) && !player.isOnline()) return;
         switch (tagged.tag()) {
-            // Deferred a tick: Bukkit doesn't allow closing (or opening another) inventory from
-            // inside an InventoryClickEvent, and running the command here first also avoids the
-            // stale-refill problem above for the common [player] case of opening another menu.
-            case "player" -> Bukkit.getScheduler().runTask(plugin, () -> player.performCommand(filled));
+            case "player" -> player.performCommand(filled);
             case "message" -> player.sendMessage(Text.component(filled));
-            case "close" -> Bukkit.getScheduler().runTask(plugin, () -> player.closeInventory());
+            case "close" -> player.closeInventory();
             default -> Bukkit.dispatchCommand(Bukkit.getConsoleSender(), filled);
         }
     }
