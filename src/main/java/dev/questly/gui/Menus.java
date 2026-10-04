@@ -199,6 +199,7 @@ public final class Menus implements Listener {
     private void fillCategories(Inventory inventory) {
         ItemStack fill = filler(plugin.settings().categoriesFiller());
         for (int i = 0; i < inventory.getSize(); i++) inventory.setItem(i, fill);
+        decorate(inventory, plugin.settings().categoryDecorations());
         for (Category category : Category.values()) {
             Settings.CategoryButton button = plugin.settings().categoryButton(category);
             if (button.slot() < 0 || button.slot() >= inventory.getSize()) continue;
@@ -217,6 +218,7 @@ public final class Menus implements Listener {
         List<Integer> where = plugin.settings().questSlots();
         ItemStack fill = filler(plugin.settings().filler());
         for (int i = 0; i < inventory.getSize(); i++) inventory.setItem(i, fill);
+        decorate(inventory, plugin.settings().boardDecorations());
         for (int i = 0; i < quests.size() && i < where.size(); i++) {
             int slot = where.get(i);
             // A reload that raises the slot count can hand back an index past the size of a board
@@ -230,6 +232,24 @@ public final class Menus implements Listener {
             ItemStack stack = item(display.material(), display.name(), display.lore(), Map.of());
             if (stack != null) inventory.setItem(back, stack);
         }
+    }
+
+    /** Puts the decorations of a menu in their slots, over the filler. */
+    private void decorate(Inventory inventory, List<Decorations.Decoration> decorations) {
+        for (Decorations.Decoration decoration : decorations) {
+            ItemStack stack = item(decoration.material(), decoration.name(), decoration.lore(), Map.of());
+            if (stack == null) continue;
+            for (int slot : decoration.slots()) {
+                if (slot < inventory.getSize()) inventory.setItem(slot, stack);
+            }
+        }
+    }
+
+    /** Runs what a decoration says, a tick after the click. */
+    private void runDecoration(Player player, @Nullable Decorations.Decoration decoration) {
+        if (decoration == null || decoration.commands().isEmpty()) return;
+        List<String> commands = decoration.commands();
+        Bukkit.getScheduler().runTask(plugin, () -> commands.forEach(command -> runCommand(player, command)));
     }
 
     /** Keeps the timers and scores of open boards current. Called once a second. */
@@ -354,6 +374,12 @@ public final class Menus implements Listener {
     /** A category button opens its board, the back button of a board opens the categories again. */
     private void navigate(Player player, InventoryHolder holder, int slot) {
         if (holder instanceof CategoryHolder) {
+            // The buttons are on top of the decorations, so a button slot never runs a decoration
+            boolean button = false;
+            for (Category category : Category.values()) {
+                if (plugin.settings().categoryButton(category).slot() == slot) button = true;
+            }
+            if (!button) runDecoration(player, Decorations.at(plugin.settings().categoryDecorations(), slot));
             for (Category category : Category.values()) {
                 if (plugin.settings().categoryButton(category).slot() == slot) {
                     // Deferred a tick: another inventory cannot be opened from inside the click.
@@ -368,6 +394,8 @@ public final class Menus implements Listener {
             Bukkit.getScheduler().runTask(plugin, () -> {
                 if (player.isOnline()) openBoard(player);
             });
+        } else if (holder instanceof BoardHolder && !plugin.settings().questSlots().contains(slot)) {
+            runDecoration(player, Decorations.at(plugin.settings().boardDecorations(), slot));
         }
     }
 

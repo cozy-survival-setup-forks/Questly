@@ -1,5 +1,6 @@
 package dev.questly;
 
+import dev.questly.gui.Decorations;
 import dev.questly.quest.Category;
 import dev.questly.quest.Quest;
 import dev.questly.util.Slots;
@@ -19,6 +20,8 @@ public final class Settings {
     private final List<Integer> questSlots;
     /** True for a config.yml from before the menu: section. Checked on the file itself, not the bundled defaults. */
     private final boolean legacy;
+    private final List<Decorations.Decoration> categoryDecorations;
+    private final List<Decorations.Decoration> boardDecorations;
 
     Settings(FileConfiguration config, Logger log) {
         this.config = config;
@@ -40,6 +43,25 @@ public final class Settings {
             log.info("config.yml still uses board.slots and gui:, which keep working. The simpler menu: section "
                     + "(rows, quest-slots, filler) is shown in the default config.yml.");
         }
+        categoryDecorations = Decorations.parse(config.getMapList("categories.decorations"), categoriesRows() * 9,
+                "categories.decorations", log, Settings::isItem);
+        boardDecorations = Decorations.parse(config.getMapList(menu("decorations")), menuRows * 9,
+                menu("decorations"), log, Settings::isItem);
+    }
+
+    /** The extra items of the category menu. */
+    public List<Decorations.Decoration> categoryDecorations() {
+        return categoryDecorations;
+    }
+
+    /** The extra items of a board. */
+    public List<Decorations.Decoration> boardDecorations() {
+        return boardDecorations;
+    }
+
+    private static boolean isItem(String name) {
+        org.bukkit.Material type = org.bukkit.Material.matchMaterial(name);
+        return type != null && type.isItem();
     }
 
     /** How many quests are up at once: one for every quest slot of the menu. */

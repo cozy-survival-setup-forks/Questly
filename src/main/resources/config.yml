@@ -39,6 +39,18 @@ menu:
       - "&#B6C1C8Quests"
       - ""
       - "&fBack to the categories."
+  # Extra items for the board. Each has a slot (a number, a list or ranges such as "0-8"), a material and a name,
+  # and can have lore and commands. Commands run when the item is clicked, and can start with [player],
+  # [console] (the default), [message] or [close]. %player% is the player who clicked.
+  decorations: []
+  # decorations:
+  #   - slots: "0-8"
+  #     material: PURPLE_STAINED_GLASS_PANE
+  #     name: " "
+  #   - slot: 4
+  #     material: BOOK
+  #     name: "&#FF9558How it works"
+  #     lore: ["&7The first player to finish wins."]
   # Shown in the place of a quest that was won, until the next one starts.
   cooldown-item:
     material: CLOCK
@@ -55,6 +67,8 @@ categories:
   title: "&#FF9558Quests"
   rows: 3
   filler: BLACK_STAINED_GLASS_PANE
+  # Extra items, written like menu.decorations above. The category buttons are drawn on top of them.
+  decorations: []
   combat:
     slot: 10
     material: DIAMOND_SWORD

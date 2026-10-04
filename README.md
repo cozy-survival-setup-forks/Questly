@@ -127,6 +127,23 @@ categories:                     # the category menu: slot, material, name and lo
     name: "&#FF6E6ECombat Quests"
 ```
 
+Both menus can show extra items. Add them to `categories.decorations` (the category menu) or `menu.decorations`
+(every board). Each one has `slot` or `slots` (a number, a list, or ranges like `"0-8"`), `material`, `name`, and
+optionally `lore` and `commands`. Commands run when the item is clicked, as the console by default, or start them with
+`[player]`, `[message]` or `[close]`. Buttons and quests are drawn on top of decorations.
+
+```yaml
+categories:
+  decorations:
+    - slots: "0-8"
+      material: PURPLE_STAINED_GLASS_PANE
+      name: " "
+    - slot: 4
+      material: BOOK
+      name: "&#FF9558How it works"
+      lore: ["&7Pick a category below."]
+```
+
 Older `config.yml` files with `board.slots` and `gui:` keep working. After an update, the quests that were up move
 to the board of their category and keep their progress.
 
