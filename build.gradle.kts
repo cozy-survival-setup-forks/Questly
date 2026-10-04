@@ -16,12 +16,13 @@ repositories {
 dependencies {
     compileOnly("io.papermc.paper:paper-api:1.21.11-R0.1-SNAPSHOT")
     compileOnly("me.clip:placeholderapi:2.12.3")
-    implementation("org.xerial:sqlite-jdbc:3.46.1.3")
 
     testImplementation(platform("org.junit:junit-bom:6.1.3"))
     testImplementation("org.junit.jupiter:junit-jupiter")
     testImplementation("io.papermc.paper:paper-api:1.21.11-R0.1-SNAPSHOT")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
+    // The server provides the SQLite driver, the tests need their own
+    testRuntimeOnly("org.xerial:sqlite-jdbc:3.46.1.3")
 }
 
 java {
@@ -54,7 +55,6 @@ tasks {
     shadowJar {
         archiveFileName = "Questly-${project.version}.jar"
         archiveClassifier = ""
-        relocate("org.sqlite", "dev.questly.libs.sqlite")
     }
 
     build {

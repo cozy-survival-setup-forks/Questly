@@ -163,7 +163,7 @@ Mining, and so on. `/questly admin setquest` only takes a quest of the category 
 
 - Everything is kept in `data.db` in the plugin folder, written in the background so the server never waits for the disk.
   Rewards for players who are offline are given when they join.
-- Nothing is downloaded when the server starts. The SQLite driver is bundled in the jar.
+- Nothing is downloaded when the server starts. The SQLite driver is the one Paper already ships with, so the jar stays small.
 - Everything runs on the main thread except writing to the file.
 
 ## Telemetry
