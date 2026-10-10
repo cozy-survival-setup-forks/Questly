@@ -95,6 +95,9 @@ categories:
         - "&#FF9558\u25B6 &l&nCLICK&r&#FF9558 to Browse"
       commands:
         - "[player] questshop"
+  # Each category below can also set its own title: for the window of its board. It is used as it is (%category%
+  # is the name of the button, without colors). Without one, menu.title above is used.
+  # Example: add   title: "&#FF6E6EFighting"   under combat.
   combat:
     slot: 19
     material: DIAMOND_SWORD

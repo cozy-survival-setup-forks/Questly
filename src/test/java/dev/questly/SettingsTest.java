@@ -39,6 +39,17 @@ class SettingsTest {
     }
 
     @Test
+    void aCategoryCanHaveATitleOfItsOwn() {
+        YamlConfiguration config = new YamlConfiguration();
+        config.set("categories.combat.name", "&cCombat Quests");
+        config.set("categories.combat.title", "&6Fighting - %category%");
+        Settings settings = new Settings(config, LOG);
+
+        assertEquals("&6Fighting - %category%", settings.categoryBoardTitle(dev.questly.quest.Category.COMBAT));
+        assertEquals(null, settings.categoryBoardTitle(dev.questly.quest.Category.MINING));
+    }
+
+    @Test
     void anOldConfigWithGuiAndBoardSlotsStillWorks() {
         YamlConfiguration old = new YamlConfiguration();
         old.set("board.slots", 5);

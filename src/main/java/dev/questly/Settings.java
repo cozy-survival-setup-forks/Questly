@@ -147,6 +147,15 @@ public final class Settings {
         return own == null ? filler() : own.toUpperCase(Locale.ROOT);
     }
 
+    /**
+     * The title of the board of a category, from {@code categories.<key>.title}, or null when it is not set and
+     * {@code menu.title} is used. %category% in it is the name of the button, without colors.
+     */
+    public String categoryBoardTitle(Category category) {
+        String title = config.getString("categories." + category.key() + ".title");
+        return title == null || title.isBlank() ? null : title;
+    }
+
     /** The button of a category, from {@code categories.<key>} with defaults for whatever is missing. */
     public CategoryButton categoryButton(Category category) {
         String[] look = DEFAULT_LOOK.get(category);

@@ -124,8 +124,12 @@ categories:                     # the category menu: slot, material, name and lo
   combat:
     slot: 19
     material: DIAMOND_SWORD
-    name: "&#FF6E6ECombat Quests"
+    name: "&#FF6E6ECombat Quests"   # the name of the button
+    title: "&#FF6E6EFighting"       # optional: the title of that category's board (default: menu.title)
 ```
+
+`title:` on a category is the title of its board, written as it should look; it does not depend on `name:`.
+`%category%` in it is the name of the button without colors. A category without a `title:` uses `menu.title`.
 
 The default menus have 6 rows: the quests of a category fill 4 rows of 7, the empty slots stay empty and a Quest Shop
 item sits at the bottom of every menu. It runs `/questshop`, which opens the shop.

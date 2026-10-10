@@ -188,9 +188,16 @@ public final class Menus implements Listener {
     public void openBoard(Player player, Category category) {
         BoardHolder holder = new BoardHolder();
         holder.category = category;
-        String title = plugin.settings().guiTitle();
         String name = PlainTextComponentSerializer.plainText().serialize(Text.component(plugin.settings().categoryButton(category).display().name()));
-        title = title.contains("%category%") ? title.replace("%category%", name) : title + " - " + name;
+        // a title set on the category itself is used as it is; without one the title of the boards is used
+        String own = plugin.settings().categoryBoardTitle(category);
+        String title;
+        if (own != null) {
+            title = own.replace("%category%", name);
+        } else {
+            title = plugin.settings().guiTitle();
+            title = title.contains("%category%") ? title.replace("%category%", name) : title + " - " + name;
+        }
         holder.inventory = Bukkit.createInventory(holder, plugin.settings().menuRows() * 9, Text.component(title));
         fillBoard(holder.inventory, player, category);
         player.openInventory(holder.inventory);
