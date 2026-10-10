@@ -37,6 +37,12 @@ public final class QuestlyCommand implements TabExecutor {
             case "shop" -> open(sender, true);
             case "points" -> points(sender, args);
             case "admin" -> admin(sender, args);
+            case "doctor" -> {
+                if (adminOnly(sender)) doctor(sender, args, 1);
+            }
+            case "backup" -> {
+                if (adminOnly(sender)) backup(sender, args, 1);
+            }
             default -> plugin.messages().send(sender, "usage");
         }
         return true;
@@ -90,6 +96,25 @@ public final class QuestlyCommand implements TabExecutor {
         return known != null && known.hasPlayedBefore() ? known : null;
     }
 
+    private boolean adminOnly(CommandSender sender) {
+        if (sender.hasPermission("questly.admin")) return true;
+        plugin.messages().send(sender, "no-permission");
+        return false;
+    }
+
+    private void doctor(CommandSender sender, String[] args, int at) {
+        if (args.length > at + 1 && args[at].equalsIgnoreCase("resolve")) {
+            sender.sendPlainMessage(plugin.resolvePayout(args[at + 1]) ? "Marked as checked." : "No unfinished payout has that id.");
+            return;
+        }
+        plugin.doctor().forEach(sender::sendPlainMessage);
+    }
+
+    private void backup(CommandSender sender, String[] args, int at) {
+        if (args.length <= at || !args[at].equalsIgnoreCase("now")) sender.sendPlainMessage("Use /questly backup now");
+        else sender.sendPlainMessage(plugin.backupNow() ? "Backup made and checked." : "The backup FAILED, see the console.");
+    }
+
     private void admin(CommandSender sender, String[] args) {
         if (!sender.hasPermission("questly.admin")) {
             plugin.messages().send(sender, "no-permission");
@@ -99,8 +124,11 @@ public final class QuestlyCommand implements TabExecutor {
         switch (action) {
             case "reload" -> {
                 int amount = plugin.reloadAll();
-                plugin.messages().send(sender, "reloaded", Map.of("%amount%", String.valueOf(amount)));
+                if (amount < 0) plugin.messages().send(sender, "reload-failed");
+                else plugin.messages().send(sender, "reloaded", Map.of("%amount%", String.valueOf(amount)));
             }
+            case "doctor" -> doctor(sender, args, 2);
+            case "backup" -> backup(sender, args, 2);
             case "reset" -> {
                 plugin.service().reset();
                 plugin.messages().send(sender, "reset");
@@ -173,11 +201,12 @@ public final class QuestlyCommand implements TabExecutor {
         boolean admin = sender.hasPermission("questly.admin");
         if (args.length == 1) {
             options.addAll(List.of("open", "shop", "points"));
+            if (sender.hasPermission("questly.admin")) options.addAll(List.of("doctor", "backup"));
             if (admin) options.add("admin");
         } else if (args.length == 2 && args[0].equalsIgnoreCase("points") && sender.hasPermission("questly.points.others")) {
             Bukkit.getOnlinePlayers().forEach(player -> options.add(player.getName()));
         } else if (args[0].equalsIgnoreCase("admin") && admin) {
-            if (args.length == 2) options.addAll(List.of("reload", "reset", "setquest", "points"));
+            if (args.length == 2) options.addAll(List.of("reload", "reset", "setquest", "points", "doctor", "backup"));
             else if (args[1].equalsIgnoreCase("points")) {
                 if (args.length == 3) options.addAll(List.of("give", "take", "set"));
                 if (args.length == 4) Bukkit.getOnlinePlayers().forEach(player -> options.add(player.getName()));

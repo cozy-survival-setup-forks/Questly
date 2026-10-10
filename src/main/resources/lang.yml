@@ -1,3 +1,4 @@
+lang-version: 1
 # Texts. MiniMessage, & codes and &#rrggbb all work. Leave one empty to turn it off.
 # %player%, %quest%, %points%, %amount% and %time% are filled in.
 
@@ -22,6 +23,8 @@ reward-waiting: "&fYou got %amount% reward(s) from quests you won while away."
 
 reset: "&fThe board has new quests."
 reloaded: "&fReloaded. There are %amount% quests."
+reload-failed: "&cA file has a mistake in it, so nothing was reloaded. The console has the details."
+save-failed: "&cThat could not be saved, so nothing was taken. Try again in a moment."
 quest-set: "&fSlot %slot% now has the quest &#A8E6A3%quest%&f."
 wrong-category: "&cSlot %slot% is for %category%, and &#A8E6A3%quest% &cis in another category."
 

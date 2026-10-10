@@ -66,10 +66,22 @@ public final class BoardService {
 
     private void complete(Board.Completion completion) {
         Quest quest = completion.quest();
+        // written down, and the finished board saved, before anything is paid: a stop in the middle can then never pay
+        // the same quest twice, and rewards that may have been missed are listed for a person to check
+        String record = storage.begin("quest-reward", "quest=" + quest.titleText() + " winner=" + completion.winnerName()
+                + " (" + completion.winner() + ")");
         if (quest.winPoints() > 0) {
             points.add(completion.winner(), completion.winnerName(), quest.winPoints());
         }
-        giveRewards(completion);
+        boolean saved = saveSlotNow(completion.slot());
+        if (saved) {
+            giveRewards(completion);
+            storage.finish(record, true, null);
+        } else {
+            storage.flag(record, "the finished board could not be saved, so the rewards were not paid");
+            plugin.getLogger().severe("The finished quest of " + completion.winnerName() + " could not be saved, so its rewards were not paid. "
+                    + "They are listed in /questly doctor.");
+        }
 
         if (plugin.settings().broadcast("completed")) {
             plugin.messages().broadcast("completed", Map.of(
@@ -77,7 +89,6 @@ public final class BoardService {
                     "%quest%", quest.titleText(),
                     "%points%", String.valueOf(quest.winPoints())));
         }
-        saveSlot(completion.slot());
     }
 
     /** Runs the reward commands for each place of the leaderboard that has some. Players who are away get them later. */
@@ -115,6 +126,29 @@ public final class BoardService {
         slot.clean();
     }
 
+    /** Saves a slot and waits until it is on disk. @return false when it could not be written */
+    boolean saveSlotNow(int index) {
+        Board.Slot slot = board.slot(index);
+        if (slot == null || slot.quest() == null) return true;
+        boolean written = storage.saveSlotNow(board.snapshot(slot));
+        if (written) slot.clean();
+        return written;
+    }
+
+    /** For the shop: the record of a payout, written before it is made. Null when it could not be written. */
+    public String beginPayout(String kind, String detail) {
+        return storage.begin(kind, detail);
+    }
+
+    public void finishPayout(String record, boolean ok, String reason) {
+        storage.finish(record, ok, reason);
+    }
+
+    /** Waits until the points that were just changed are on disk. @return false when they could not be written */
+    public boolean flushStorage() {
+        return storage.flush();
+    }
+
     /** Saves the progress of every slot that changed since the last time. */
     void saveDirty() {
         for (Board.Slot slot : board.slots()) {
@@ -132,7 +166,8 @@ public final class BoardService {
     void deliverPending(Player player) {
         UUID id = player.getUniqueId();
         points.remember(id, player.getName());
-        storage.takePending(id).thenAccept(commands -> {
+        storage.takePending(id).thenAccept(claimed -> {
+            List<String> commands = claimed.commands();
             if (commands.isEmpty()) return;
             Bukkit.getScheduler().runTask(plugin, () -> {
                 Player online = Bukkit.getPlayer(id);
@@ -141,11 +176,13 @@ public final class BoardService {
                     // already deleted from storage (takePending took them), so put them back instead
                     // of dispatching commands against nobody and losing the reward for good.
                     for (String command : commands) storage.addPending(id, command);
+                    storage.finish(claimed.record(), false, "put back in the queue");
                     return;
                 }
                 for (String command : commands) {
                     Bukkit.dispatchCommand(Bukkit.getConsoleSender(), command);
                 }
+                storage.finish(claimed.record(), true, null);
                 plugin.messages().send(online, "reward-waiting", Map.of("%amount%", String.valueOf(commands.size())));
             });
         }).exceptionally(e -> {

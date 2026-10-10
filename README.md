@@ -190,11 +190,21 @@ Mining, and so on. `/questly admin setquest` only takes a quest of the category 
 - Nothing is downloaded when the server starts. The SQLite driver is the one Paper already ships with, so the jar stays small.
 - Everything runs on the main thread except writing to the file.
 
+## Keeping your files safe
+
+- `config.yml` and `lang.yml` start with a `config-version` / `lang-version` number. After an update, new settings are added to your files with their comments, and nothing you changed is touched. The old file is kept next to it as `<name>.<date>.bak` (the newest 5). A setting is only removed when the changelog says so.
+- A value with a mistake (a negative time, an item that does not exist, text where a number belongs) is named in the console by file and key. On a reload, the settings in use stay as they were.
+- Files are written to a temporary file and moved into place, with the previous version kept as `.bak`. A file that cannot be read is restored from its `.bak`, and the unreadable one is kept as `.broken-<time>`.
+- A file or database that was made by a newer version of the plugin is left alone and a warning is logged.
+- `data.db` is a SQLite database in WAL mode. It is checked when the plugin starts, a copy is made on a schedule (`backup.interval-hours`, `backup.keep` in `config.yml`, in the `backups` folder) and every copy is opened and checked before older ones are removed. A damaged database is replaced by the newest copy that checks out, or, where nothing may be lost, the plugin stays off and the file is left untouched.
+- The backup is a consistent snapshot, not a copy of the open file.
+- `/questly doctor` shows the health of the files, versions, last backup and recent save failures (no player data). `/questly backup now` makes a checked backup right away. Both need the admin permission.
+
 ## Telemetry
 
 On startup Questly sends a small anonymous beacon (plugin name/version, server software/version,
 online/max player counts, and a random ID with no player data) so we know which versions are in
-use. Turn it off with `metrics.enabled: false` in `config.yml`.
+use. Turn it off with `metrics.enabled: false` in `config.yml`. The random ID is kept as `server-id` in `data.db` (older versions kept it in a `.server-id` file, which is moved over unchanged). The address and the interval are fixed in the plugin and are not settings.
 
 ## Building
 

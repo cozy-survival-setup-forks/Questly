@@ -301,10 +301,27 @@ public final class Menus implements Listener {
     }
 
     private void buy(Player player, Product product) {
+        // written down before the points are taken: a stop in the middle is listed for a person to check, never repeated
+        String record = null;
+        int pointsBefore = service.points().get(player.getUniqueId());
+        if (!product.free()) {
+            record = service.beginPayout("shop-purchase", "player=" + player.getName() + " uuid=" + player.getUniqueId()
+                    + " product=" + PlainTextComponentSerializer.plainText().serialize(Text.component(product.name()))
+                    + " price=" + product.price());
+        }
         if (!product.free() && !service.points().spend(player.getUniqueId(), player.getName(), product.price())) {
+            service.finishPayout(record, false, "not enough points");
             plugin.messages().send(player, "not-enough-points", Map.of(
                     "%price%", String.valueOf(product.price()),
                     "%points%", String.valueOf(service.points().get(player.getUniqueId()))));
+            player.playSound(player.getLocation(), Sound.ENTITY_VILLAGER_NO, 1f, 1f);
+            return;
+        }
+        if (!product.free() && !service.flushStorage()) {
+            // the new points are not on disk: put them back so nothing is taken without being recorded
+            service.points().load(player.getUniqueId(), player.getName(), pointsBefore);
+            service.finishPayout(record, false, "the new points could not be saved");
+            plugin.messages().send(player, "save-failed");
             player.playSound(player.getLocation(), Sound.ENTITY_VILLAGER_NO, 1f, 1f);
             return;
         }
@@ -312,8 +329,14 @@ public final class Menus implements Listener {
         // Deferred a tick: Bukkit doesn't allow closing (or opening another) inventory from inside an
         // InventoryClickEvent, and a console command such as "dm open <menu> %player%" does exactly that.
         List<String> commands = product.commands();
+        final String finalRecord = record;
         if (!commands.isEmpty()) {
-            Bukkit.getScheduler().runTask(plugin, () -> commands.forEach(command -> runCommand(player, command)));
+            Bukkit.getScheduler().runTask(plugin, () -> {
+                commands.forEach(command -> runCommand(player, command));
+                service.finishPayout(finalRecord, true, null);
+            });
+        } else {
+            service.finishPayout(record, true, null);
         }
         for (ConfigurationSection line : product.give()) {
             ItemStack stack = item(line.getString("material", "STONE").toUpperCase(Locale.ROOT),

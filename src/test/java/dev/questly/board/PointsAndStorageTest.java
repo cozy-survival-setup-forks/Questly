@@ -84,7 +84,7 @@ class PointsAndStorageTest {
         Logger log = Logger.getLogger("storage-test");
 
         try (SqliteStorage storage = new SqliteStorage(file, log)) {
-            storage.open();
+            storage.open(3);
             storage.savePoints(ALEX, "Alex", 12);
             storage.savePoints(ALEX, "Alex", 15);
             storage.savePoints(SAM, "Sam", 3);
@@ -94,7 +94,7 @@ class PointsAndStorageTest {
         }
 
         try (SqliteStorage again = new SqliteStorage(file, log)) {
-            SqliteStorage.Loaded loaded = again.open();
+            SqliteStorage.Loaded loaded = again.open(3);
 
             assertEquals(2, loaded.points().size());
             assertEquals(15, loaded.points().stream().filter(p -> p.id().equals(ALEX)).findFirst().orElseThrow().points());
@@ -112,14 +112,14 @@ class PointsAndStorageTest {
     @Test
     void rewardsForAwayPlayersAreHandedOutOnce(@TempDir Path folder) throws Exception {
         try (SqliteStorage storage = new SqliteStorage(folder.resolve("data.db").toFile(), Logger.getLogger("storage-test"))) {
-            storage.open();
+            storage.open(3);
             storage.addPending(ALEX, "give Alex diamond 1");
             storage.addPending(ALEX, "say hi");
             storage.addPending(SAM, "say sam");
 
-            assertEquals(List.of("give Alex diamond 1", "say hi"), storage.takePending(ALEX).get());
-            assertTrue(storage.takePending(ALEX).get().isEmpty());
-            assertEquals(List.of("say sam"), storage.takePending(SAM).get());
+            assertEquals(List.of("give Alex diamond 1", "say hi"), storage.takePending(ALEX).get().commands());
+            assertTrue(storage.takePending(ALEX).get().commands().isEmpty());
+            assertEquals(List.of("say sam"), storage.takePending(SAM).get().commands());
         }
     }
 }

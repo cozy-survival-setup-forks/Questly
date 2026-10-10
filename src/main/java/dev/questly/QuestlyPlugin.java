@@ -9,6 +9,14 @@ import dev.questly.listener.DistanceTracker;
 import dev.questly.listener.PlacedBlocks;
 import dev.questly.listener.TriggerListener;
 import dev.questly.quest.Category;
+import dev.questly.safe.ConfigMigrator;
+import dev.questly.safe.Doctor;
+import dev.questly.safe.FileBackups;
+import dev.questly.safe.Guard;
+import dev.questly.safe.Health;
+import dev.questly.safe.Prep;
+import dev.questly.safe.SafeIo;
+import dev.questly.safe.ServerId;
 import dev.questly.quest.QuestLibrary;
 import dev.questly.quest.QuestParser;
 import dev.questly.storage.SqliteStorage;
@@ -27,6 +35,10 @@ import org.bukkit.scheduler.BukkitTask;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.sql.SQLException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Random;
@@ -38,6 +50,20 @@ import java.util.logging.Level;
  */
 public final class QuestlyPlugin extends JavaPlugin implements Listener {
 
+    private static final int CONFIG_VERSION = 1;
+    private static final int LANG_VERSION = 1;
+    /** Lists the owner writes: only kept readable and backed up, nothing is added to them. */
+    private static final List<String> CONTENT_FILES = List.of("quests.yml", "shop.yml");
+
+    private final List<Prep.Spec> files = List.of(
+            new Prep.Spec("config.yml", "config-version", CONFIG_VERSION, Prep.configMigrator(CONFIG_VERSION), rules -> {
+                rules.range("backup.interval-hours", 1, 168);
+                rules.range("backup.keep", 1, 90);
+            }),
+            new Prep.Spec("lang.yml", "lang-version", LANG_VERSION, new ConfigMigrator("lang-version", LANG_VERSION), null));
+
+    private BukkitTask backupTask;
+    private boolean started;
     private Settings settings;
     private Messages messages;
     private QuestLibrary quests;
@@ -59,6 +85,18 @@ public final class QuestlyPlugin extends JavaPlugin implements Listener {
 
     private void enableInner() {
         saveDefaultConfig();
+        Health.storage("SQLite data.db for points, the board and queued rewards; YAML for config.yml, lang.yml, quests.yml and shop.yml");
+        Prep.startup(this, files);
+        for (String name : CONTENT_FILES) {
+            // a damaged one is put back from its .bak; without one it is left as it is, as before
+            Path file = getDataFolder().toPath().resolve(name);
+            if (Files.exists(file) && !SafeIo.parses(file) && SafeIo.parses(SafeIo.backupOf(file))) {
+                SafeIo.loadYaml(file, SafeIo.Policy.SETTINGS, getLogger());
+            } else {
+                SafeIo.refreshBackup(file);
+            }
+        }
+        reloadConfig();
         settings = new Settings(getConfig(), getLogger());
         messages = new Messages(this);
         messages.load();
@@ -80,7 +118,7 @@ public final class QuestlyPlugin extends JavaPlugin implements Listener {
 
         storage = new SqliteStorage(new File(getDataFolder(), "data.db"), getLogger());
         try {
-            SqliteStorage.Loaded loaded = storage.open();
+            SqliteStorage.Loaded loaded = storage.open(backupKeep());
             loaded.points().forEach(saved -> points.load(saved.id(), saved.name(), saved.points()));
             board.restore(loaded.slots());
             // If slots: was ever shrunk without a matching cleanup (an older version of this plugin
@@ -88,7 +126,10 @@ public final class QuestlyPlugin extends JavaPlugin implements Listener {
             // back to life on some future restart where slots: is raised again.
             storage.deleteSlotsFrom(board.slots().size());
         } catch (Exception ex) {
-            getLogger().log(Level.SEVERE, "Could not open data.db, disabling Questly", ex);
+            // points and queued rewards are never replaced by an empty set: the plugin stays off until it is sorted out
+            getLogger().log(Level.SEVERE, "Questly cannot use data.db and is switching itself off so nothing is reset or paid twice: " + ex.getMessage());
+            Health.failure("data.db could not be opened: " + ex.getMessage());
+            storage = null;
             getServer().getPluginManager().disablePlugin(this);
             return;
         }
@@ -134,15 +175,69 @@ public final class QuestlyPlugin extends JavaPlugin implements Listener {
         for (Player player : Bukkit.getOnlinePlayers()) {
             service.deliverPending(player);
         }
-        Metrics.start(this);
+        boolean beacon = getConfig().getBoolean("metrics.enabled", true);
+        Metrics.start(this, ServerId.resolve(getDataFolder().toPath(), storage.serverIdSlot(), beacon, getLogger()));
+        scheduleBackups();
+        started = true;
         Banner.print(this, "Thanks for giving every server something worth racing for.");
     }
 
     @Override
     public void onDisable() {
+        if (backupTask != null) backupTask.cancel();
         if (service != null) service.saveAll();
         if (placed != null) placed.flush();
+        // waits (up to 15 seconds) for the writes that are queued, then closes the database
         if (storage != null) storage.close();
+    }
+
+    private int backupKeep() {
+        return Math.max(1, Math.min(90, getConfig().getInt("backup.keep", 7)));
+    }
+
+    /** (Re)starts the timer of the database copies from backup.interval-hours and backup.keep. */
+    private void scheduleBackups() {
+        int hours = Math.max(1, Math.min(168, getConfig().getInt("backup.interval-hours", 6)));
+        storage.configureBackups(backupKeep());
+        if (backupTask != null) backupTask.cancel();
+        backupTask = Bukkit.getScheduler().runTaskTimerAsynchronously(this, storage::backup, 20L * 60, hours * 3600L * 20L);
+    }
+
+    /** The text of /questly doctor. */
+    public List<String> doctor() {
+        List<String> extra = new ArrayList<>(Prep.versionLines(this, files));
+        extra.add("Database: data.db, schema " + storage.schemaVersion() + " (this plugin writes " + SqliteStorage.SCHEMA + ")");
+        String newest = storage.newestBackup();
+        extra.add("Newest database copy on disk: " + (newest == null ? "none yet" : newest));
+        extra.add("Pending writes: " + storage.pendingWrites() + ", failed writes since start: " + storage.failedWrites());
+        try {
+            List<String> unknown = storage.journal() == null ? List.of() : storage.journal().unknown();
+            extra.add("Payouts that may or may not have been made (not repeated): " + unknown.size());
+            unknown.forEach(line -> extra.add("  " + line + "   (after checking: /questly doctor resolve <id>)"));
+        } catch (SQLException e) {
+            extra.add("Payout record could not be read: " + e.getMessage());
+        }
+        return Doctor.report(getName(), getPluginMeta().getVersion(), extra);
+    }
+
+    public boolean resolvePayout(String id) {
+        try {
+            return storage.journal() != null && storage.journal().resolve(id);
+        } catch (SQLException e) {
+            getLogger().severe("Could not update the payout record: " + e.getMessage());
+            return false;
+        }
+    }
+
+    /** /questly backup now: a checked copy of the database and of the settings and quest files. */
+    public boolean backupNow() {
+        service.saveAll();
+        boolean written = storage.flush();
+        boolean database = storage.backup();
+        List<String> names = new ArrayList<>(Prep.fileNames(files));
+        names.addAll(CONTENT_FILES);
+        boolean settingsFiles = FileBackups.snapshot(getDataFolder().toPath(), names, 5, getLogger());
+        return written && database && settingsFiles;
     }
 
     @EventHandler
@@ -199,7 +294,15 @@ public final class QuestlyPlugin extends JavaPlugin implements Listener {
      * config with no error, and an empty library clears every slot.
      */
     public int reloadAll() {
+        if (started) {
+            List<Guard.Problem> problems = Prep.validate(this, files);
+            if (!problems.isEmpty()) {
+                Prep.logRejected(this, problems);
+                return -1;
+            }
+        }
         reloadConfig();
+        scheduleBackups();
         settings = new Settings(getConfig(), getLogger());
         messages.load();
         try {

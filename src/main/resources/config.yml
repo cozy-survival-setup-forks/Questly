@@ -1,3 +1,4 @@
+config-version: 1
 # Questly
 #
 # The quests are in quests.yml, the texts in lang.yml and the points shop in shop.yml.
@@ -134,8 +135,15 @@ broadcasts:
   # Tell the leader of a quest when somebody passes them.
   taken-over: true
 
+# Copies of the database (data.db), made while the server runs and checked before older ones are removed.
+# They are in the "backups" folder. /questly backup now makes one at once.
+backup:
+  # Hours between copies.
+  interval-hours: 6
+  # How many copies to keep.
+  keep: 7
+
 # Anonymous usage beacon: plugin name/version, server software/version and online/max player
 # counts, nothing else. Set to false to turn it off.
 metrics:
   enabled: true
-  interval-minutes: 45
